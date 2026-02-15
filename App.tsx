@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { CalculatorApp } from './components/Calculator';
 import { Dashboard } from './components/Dashboard';
@@ -7,6 +7,7 @@ import { LeadsList } from './components/LeadsList';
 import { CompanySettings } from './components/CompanySettings';
 import { BannerCreator } from './components/BannerCreator';
 import { InteractiveCard } from './components/InteractiveCard';
+import { LoginPage } from './components/LoginPage';
 import { UserProfile, CompanyProfile } from './types';
 
 // Mock initial state for a new user
@@ -37,6 +38,7 @@ const INITIAL_COMPANY: CompanyProfile = {
 };
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activePage, setActivePage] = useState('dashboard');
   const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_PROFILE);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(INITIAL_COMPANY);
@@ -48,6 +50,16 @@ export default function App() {
     setUserProfile(prev => ({ ...prev, firmName: newName }));
     // Also update company name if it matches roughly or is empty
     setCompanyProfile(prev => ({ ...prev, name: newName }));
+  };
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+    setActivePage('dashboard');
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setActivePage('dashboard'); // Reset page to default on logout
   };
 
   const renderContent = () => {
@@ -77,8 +89,17 @@ export default function App() {
     }
   };
 
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   return (
-    <Layout activePage={activePage} setActivePage={setActivePage} userProfile={userProfile}>
+    <Layout 
+      activePage={activePage} 
+      setActivePage={setActivePage} 
+      userProfile={userProfile}
+      onLogout={handleLogout}
+    >
       {renderContent()}
     </Layout>
   );

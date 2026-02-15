@@ -2,11 +2,12 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Moon, Sun, Calculator, PieChart, User, Menu, X, LogOut, Share2, UserCircle, ChevronRight, ChevronLeft, Bell, AlertTriangle, CheckCircle, Building2, Image, IdCard, Settings } from 'lucide-react';
 import { UserProfile } from '../types';
 
-export const Layout = ({ children, activePage, setActivePage, userProfile }: { 
+export const Layout = ({ children, activePage, setActivePage, userProfile, onLogout }: { 
     children?: React.ReactNode, 
     activePage: string, 
     setActivePage: (p: string) => void,
-    userProfile?: UserProfile // Added prop
+    userProfile?: UserProfile,
+    onLogout: () => void
 }) => {
   const [isDark, setIsDark] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -50,13 +51,12 @@ export const Layout = ({ children, activePage, setActivePage, userProfile }: {
     setIsMobileMenuOpen(false);
   };
 
-  const handleLogout = () => {
-      // Mock logout logic
+  const handleLogoutClick = () => {
       const confirm = window.confirm("Deseja realmente sair do sistema?");
       if(confirm) {
-          alert("Sessão encerrada.");
           setIsUserMenuOpen(false);
-          // In a real app, this would clear tokens and redirect to login
+          setIsMobileMenuOpen(false);
+          onLogout();
       }
   };
 
@@ -170,7 +170,7 @@ export const Layout = ({ children, activePage, setActivePage, userProfile }: {
                 </button>
               ))}
               <div className="h-px bg-slate-200 dark:bg-slate-800 my-2"></div>
-              <button onClick={handleLogout} className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-base font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10">
+              <button onClick={handleLogoutClick} className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-base font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10">
                  <LogOut size={20} />
                  Sair
               </button>
@@ -276,7 +276,7 @@ export const Layout = ({ children, activePage, setActivePage, userProfile }: {
 
                             <div className="py-1 border-t border-slate-100 dark:border-slate-700">
                                 <button
-                                    onClick={handleLogout}
+                                    onClick={handleLogoutClick}
                                     className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors"
                                 >
                                     <LogOut size={16} /> Sair do Sistema

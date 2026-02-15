@@ -278,13 +278,16 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
   const [widgetPosition, setWidgetPosition] = useState<'bottom-left' | 'bottom-right' | 'top-left' | 'top-right'>('bottom-right');
   const [widgetAction, setWidgetAction] = useState<'modal' | 'link'>('modal');
   const [targetUrl, setTargetUrl] = useState('');
-
+  
   // Derived data
   const cityName = companyProfile.address.city || "Sua Cidade";
   const firmName = companyProfile.name;
   const currentYear = new Date().getFullYear();
   const displayTitle = firmName && firmName.trim() !== '' ? firmName : `Calculadora Rescisão em ${cityName}`;
   const publicUrl = `https://app.lexonline.com.br/c/${username || 'usuario'}/calculorescisaotrabalhista`;
+
+  // Custom Widget Url State
+  const [customWidgetUrl, setCustomWidgetUrl] = useState('');
 
   // --- Handlers ---
   const handleStartEdit = () => {
@@ -313,17 +316,91 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      
-      // Header for PDF
-      pdf.setFontSize(10);
-      pdf.text(`Gerado por: ${firmName}`, 10, 10);
-      pdf.text(`Data: ${new Date().toLocaleDateString()}`, 10, 15);
+      const margin = 10;
+      let currentY = 15;
 
-      const canvasResult = await html2canvas(resultElement, { scale: 2, backgroundColor: '#ffffff', logging: false });
-      const imgDataResult = canvasResult.toDataURL('image/png');
-      const imgHeightResult = (canvasResult.height * pdfWidth) / canvasResult.width;
+      // --- COMPANY HEADER SECTION ---
+      // Background Box
+      pdf.setFillColor(248, 250, 252); // slate-50
+      pdf.setDrawColor(203, 213, 225); // slate-300
+      pdf.roundedRect(margin, currentY, pdfWidth - (margin * 2), 55, 3, 3, 'FD');
+
+      // Header Content Container
+      const contentX = margin + 8;
+      let textY = currentY + 10;
+
+      // Company Name
+      pdf.setFontSize(14);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(30, 41, 59); // slate-800
+      pdf.text(companyProfile.name || "Advocacia Trabalhista", contentX, textY);
       
-      pdf.addImage(imgDataResult, 'PNG', 0, 20, pdfWidth, imgHeightResult);
+      textY += 8;
+
+      // Address (Symbolized with text label)
+      pdf.setFontSize(9);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(71, 85, 105); // slate-600
+      const address = companyProfile.address;
+      const addressLine = `${address.street}, ${address.number} - ${address.neighborhood}`;
+      const cityLine = `${address.city} - ${address.state}, CEP: ${address.cep}`;
+      
+      pdf.text(`Endereço: ${addressLine}`, contentX, textY);
+      textY += 5;
+      pdf.text(cityLine, contentX, textY);
+
+      textY += 8;
+
+      // Contact Info Row 1 (Email / Site)
+      pdf.text(`Email: ${companyProfile.email}`, contentX, textY);
+      if(companyProfile.website) {
+         pdf.text(`Site: ${companyProfile.website}`, contentX + 80, textY);
+      }
+      
+      textY += 8;
+
+      // --- CLICKABLE CONTACTS ---
+      const cleanPhone = companyProfile.phone.replace(/\D/g, '');
+      const whatsMsg = encodeURIComponent("Quero falar com um especialista");
+
+      // Phone Link
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(37, 99, 235); // blue-600
+      pdf.textWithLink(`Tel: ${companyProfile.phone}`, contentX, textY, { url: `tel:${cleanPhone}` });
+
+      // WhatsApp Link
+      pdf.setTextColor(22, 163, 74); // green-600
+      pdf.textWithLink(`WhatsApp: ${companyProfile.phone}`, contentX + 60, textY, { url: `https://wa.me/55${cleanPhone}?text=${whatsMsg}` });
+
+      // Call to action hint
+      textY += 6;
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "italic");
+      pdf.setTextColor(148, 163, 184); // slate-400
+      pdf.text("(Clique nos números acima para entrar em contato)", contentX, textY);
+
+
+      // --- RESULT IMAGE ---
+      // Scale logic moved here to avoid html2canvas capturing header
+      const canvasResult = await html2canvas(resultElement, { 
+          scale: 2, 
+          backgroundColor: '#ffffff',
+          logging: false 
+      });
+      
+      const imgDataResult = canvasResult.toDataURL('image/png');
+      const imgWidth = pdfWidth - (margin * 2);
+      const imgHeight = (canvasResult.height * imgWidth) / canvasResult.width;
+      
+      // Place image below header
+      const imageY = currentY + 60; // Header height + padding
+      pdf.addImage(imgDataResult, 'PNG', margin, imageY, imgWidth, imgHeight);
+
+      // Footer
+      pdf.setFontSize(8);
+      pdf.setTextColor(150);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(`Gerado em ${new Date().toLocaleDateString()} por Portal LexOnline`, margin, pdf.internal.pageSize.getHeight() - 10);
 
       pdf.save(`calculo-rescisao-${input.employeeName || 'funcionario'}.pdf`);
     } catch (error) {
@@ -412,6 +489,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
   };
   
   const generateWidgetCode = () => {
+    const finalUrl = customWidgetUrl || publicUrl;
     const dataAttrs = [
         `id="rescisao-widget"`,
         `data-color="${widgetColor}"`,
@@ -419,7 +497,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
         `data-text="${widgetText}"`,
         `data-pos="${widgetPosition}"`,
         `data-type="${widgetAction}"`,
-        widgetAction === 'link' ? `data-url="${targetUrl}"` : ''
+        widgetAction === 'link' ? `data-url="${targetUrl}"` : `data-iframe="${finalUrl}"`
     ].filter(Boolean).join(' ');
     return `<!-- Widget Calculadora de Rescisão -->\n<div ${dataAttrs}></div>\n<script src="https://calculadora.lexonline.com.br/widget.js" async></script>\n<!-- End Widget -->`;
   };
@@ -832,8 +910,27 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
                                 </select>
                             </div>
                         </div>
+                        
                         <div><label className="text-sm font-semibold text-slate-600 mb-2 block">Texto</label><input type="text" value={widgetText} onChange={(e) => setWidgetText(e.target.value)} className="w-full p-2 border rounded text-sm" /></div>
                         
+                         {/* ADDED: Source URL Configuration for Modal Mode */}
+                         {widgetAction === 'modal' && (
+                             <div>
+                                 <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2 block flex items-center gap-2">
+                                     <Globe size={16}/> URL da Calculadora (Iframe)
+                                     <InfoTooltip text="Caso você tenha a calculadora em uma página própria do seu site, cole o link aqui." />
+                                 </label>
+                                 <input 
+                                     type="text" 
+                                     value={customWidgetUrl} 
+                                     placeholder={publicUrl}
+                                     onChange={(e) => setCustomWidgetUrl(e.target.value)} 
+                                     className="w-full p-2 border rounded text-sm bg-slate-50 dark:bg-slate-900 dark:border-slate-600 dark:text-white" 
+                                 />
+                                 <p className="text-xs text-slate-500 mt-1">Deixe em branco para usar o padrão da LexOnline.</p>
+                             </div>
+                         )}
+
                         <div className="pt-4 border-t border-slate-100">
                             <label className="text-sm font-semibold text-slate-600 mb-2 block flex items-center gap-2"><Code size={16}/> Código do Widget</label>
                             <div className="bg-slate-900 rounded-lg p-3 relative group">
