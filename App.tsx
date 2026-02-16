@@ -9,7 +9,7 @@ import { BannerCreator } from './components/BannerCreator';
 import { InteractiveCard } from './components/InteractiveCard';
 import { LoginPage } from './components/LoginPage';
 import { AdminDashboard } from './components/AdminDashboard';
-import { UserProfile, CompanyProfile, Lead } from './types';
+import { UserProfile, CompanyProfile, Lead, Pipeline } from './types';
 
 // Mock initial state for a new user
 const INITIAL_PROFILE: UserProfile = {
@@ -78,15 +78,60 @@ const INITIAL_COMPANY: CompanyProfile = {
     }
 };
 
-// Initial Mock Data Moved to App level for sharing
+// --- PIPELINE INITIALIZATION ---
+const CALCULATOR_PIPELINE_ID = 'pipeline-calc-001';
+const COMMERCIAL_PIPELINE_ID = 'pipeline-comm-002';
+
+const INITIAL_PIPELINES: Pipeline[] = [
+    {
+        id: CALCULATOR_PIPELINE_ID,
+        name: 'Calculadora Rescisão',
+        isSystem: true,
+        showValue: true,
+        showTotal: true,
+        order: 0,
+        stages: [
+            { id: 'stage-new', name: 'Novo', order: 0, type: 'active', color: 'blue' },
+            { id: 'stage-contacted', name: 'Contatado', order: 1, type: 'active', color: 'orange' },
+            { id: 'stage-converted', name: 'Convertido', order: 2, type: 'won', color: 'green' },
+            { id: 'stage-lost', name: 'Perdido', order: 3, type: 'lost', color: 'slate' }
+        ]
+    },
+    {
+        id: COMMERCIAL_PIPELINE_ID,
+        name: 'Comercial',
+        isSystem: false,
+        showValue: true,
+        showTotal: true,
+        order: 1,
+        stages: [
+            { id: 'comm-1', name: 'Prospecção', order: 0, type: 'active', color: 'indigo' },
+            { id: 'comm-2', name: 'Qualificação', order: 1, type: 'active', color: 'violet' },
+            { id: 'comm-3', name: 'Proposta', order: 2, type: 'active', color: 'amber' },
+            { id: 'comm-4', name: 'Negociação', order: 3, type: 'active', color: 'orange' },
+            { id: 'comm-won', name: 'Fechado Ganho', order: 4, type: 'won', color: 'emerald' },
+            { id: 'comm-lost', name: 'Perdido', order: 5, type: 'lost', color: 'slate' }
+        ]
+    }
+];
+
+// Map old status to new Stage IDs for the Calculator Pipeline
+const STATUS_MAP: Record<string, string> = {
+    'New': 'stage-new',
+    'Contacted': 'stage-contacted',
+    'Converted': 'stage-converted',
+    'Lost': 'stage-lost'
+};
+
+// Initial Mock Data Adapted to Pipeline
 const INITIAL_LEADS: Lead[] = [
-  { id: '1', name: 'João Silva', email: 'joao@email.com', phone: '11999999999', createdAt: '2023-10-25', estimatedValue: 12500, status: 'New' },
-  { id: '2', name: 'Maria Souza', email: 'maria@email.com', phone: '11988888888', createdAt: '2023-10-24', estimatedValue: 8400, status: 'Contacted' },
-  { id: '3', name: 'Pedro Santos', email: 'pedro@email.com', phone: '11977777777', createdAt: '2023-10-23', estimatedValue: 25000, status: 'Converted' },
-  { id: '4', name: 'Ana Lima', email: 'ana@email.com', phone: '11966666666', createdAt: '2023-10-22', estimatedValue: 5600, status: 'Lost' },
-  { id: '5', name: 'Carlos Pereira', email: 'carlos@email.com', phone: '11955555555', createdAt: '2023-10-21', estimatedValue: 45000, status: 'New' },
-  { id: '6', name: 'Fernanda Costa', email: 'fer@email.com', phone: '11944444444', createdAt: '2023-10-20', estimatedValue: 18200, status: 'New' },
-  { id: '7', name: 'Roberto Alves', email: 'beto@email.com', phone: '11933333333', createdAt: '2023-10-19', estimatedValue: 32100, status: 'Contacted' },
+  { id: '1', name: 'João Silva', email: 'joao@email.com', phone: '11999999999', createdAt: '2023-10-25', estimatedValue: 12500, pipelineId: CALCULATOR_PIPELINE_ID, stageId: STATUS_MAP['New'] },
+  { id: '2', name: 'Maria Souza', email: 'maria@email.com', phone: '11988888888', createdAt: '2023-10-24', estimatedValue: 8400, pipelineId: CALCULATOR_PIPELINE_ID, stageId: STATUS_MAP['Contacted'] },
+  { id: '3', name: 'Pedro Santos', email: 'pedro@email.com', phone: '11977777777', createdAt: '2023-10-23', estimatedValue: 25000, pipelineId: CALCULATOR_PIPELINE_ID, stageId: STATUS_MAP['Converted'] },
+  { id: '4', name: 'Ana Lima', email: 'ana@email.com', phone: '11966666666', createdAt: '2023-10-22', estimatedValue: 5600, pipelineId: CALCULATOR_PIPELINE_ID, stageId: STATUS_MAP['Lost'] },
+  { id: '5', name: 'Carlos Pereira', email: 'carlos@email.com', phone: '11955555555', createdAt: '2023-10-21', estimatedValue: 45000, pipelineId: CALCULATOR_PIPELINE_ID, stageId: STATUS_MAP['New'] },
+  { id: '6', name: 'Fernanda Costa', email: 'fer@email.com', phone: '11944444444', createdAt: '2023-10-20', estimatedValue: 18200, pipelineId: CALCULATOR_PIPELINE_ID, stageId: STATUS_MAP['New'] },
+  { id: '7', name: 'Roberto Alves', email: 'beto@email.com', phone: '11933333333', createdAt: '2023-10-19', estimatedValue: 32100, pipelineId: CALCULATOR_PIPELINE_ID, stageId: STATUS_MAP['Contacted'] },
 ];
 
 export default function App() {
@@ -95,15 +140,16 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_PROFILE);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(INITIAL_COMPANY);
   
-  // Shared Leads State
+  // Shared Leads & Pipeline State
   const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
+  const [pipelines, setPipelines] = useState<Pipeline[]>(INITIAL_PIPELINES);
   const [targetLeadId, setTargetLeadId] = useState<string | null>(null);
   
   // Admin State
   const [adminUsers, setAdminUsers] = useState<UserProfile[]>(MOCK_ADMIN_USERS);
 
-  // Filter only 'New' leads for notifications
-  const newLeads = leads.filter(l => l.status === 'New');
+  // Filter only 'New' leads for notifications (Using stage-new)
+  const newLeads = leads.filter(l => l.stageId === 'stage-new');
 
   // Extract username from email (part before @)
   const username = userProfile.email.split('@')[0];
@@ -171,7 +217,9 @@ export default function App() {
         return (
             <LeadsList 
                 leads={leads} 
+                pipelines={pipelines}
                 onUpdateLeads={setLeads} 
+                onUpdatePipelines={setPipelines}
                 initialOpenLeadId={targetLeadId}
                 onClearTarget={() => setTargetLeadId(null)}
             />

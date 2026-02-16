@@ -49,6 +49,24 @@ export interface CalculationResult {
   noticeDays: number;
 }
 
+export interface PipelineStage {
+    id: string;
+    name: string;
+    order: number;
+    type: 'active' | 'won' | 'lost';
+    color?: string;
+}
+
+export interface Pipeline {
+    id: string;
+    name: string;
+    isSystem: boolean; // Se true, não pode ser excluído nem renomeado (ex: Calculadora)
+    showValue: boolean; // Exibir campo valor nos cards
+    showTotal: boolean; // Exibir totalizador na coluna
+    stages: PipelineStage[];
+    order: number;
+}
+
 export interface Lead {
   id: string;
   name: string;
@@ -56,7 +74,11 @@ export interface Lead {
   phone: string;
   createdAt: string;
   estimatedValue: number;
-  status: 'New' | 'Contacted' | 'Converted' | 'Lost';
+  // Novos campos para suporte a multiplos pipelines
+  pipelineId: string;
+  stageId: string; 
+  // Mantendo status legado opcional para compatibilidade durante migração se necessário
+  status?: 'New' | 'Contacted' | 'Converted' | 'Lost';
 }
 
 export interface UserStats {
