@@ -67,7 +67,7 @@ const INITIAL_INPUT: CalculatorInput = {
   noticeEndDate: ''
 };
 
-const WHATSAPP_MSG = "Quero falar com Especialista sobre Cálculo de Rescisão Trabalhista";
+const DEFAULT_WHATSAPP_MSG = "Quero falar com Especialista sobre meu Cálculo de Rescisão";
 const PRESET_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#9333ea', '#0f172a'];
 
 interface CalculatorAppProps {
@@ -277,6 +277,10 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
   const [googleAdsLabel, setGoogleAdsLabel] = useState('');
   const [copied, setCopied] = useState(false);
 
+  // Message & Contact State
+  const [whatsappMessage, setWhatsappMessage] = useState(DEFAULT_WHATSAPP_MSG);
+  const [customPhoneNumber, setCustomPhoneNumber] = useState("");
+
   // Widget State
   const [widgetColor, setWidgetColor] = useState('#2563eb');
   const [widgetTextColor, setWidgetTextColor] = useState('#ffffff');
@@ -291,6 +295,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
   const currentYear = new Date().getFullYear();
   const displayTitle = firmName && firmName.trim() !== '' ? firmName : `Calculadora Rescisão em ${cityName}`;
   const publicUrl = `https://app.lexonline.com.br/c/${username || 'usuario'}/calculorescisaotrabalhista`;
+  const activePhone = customPhoneNumber || companyProfile.phone;
 
   // --- Handlers ---
   const handleStartEdit = () => {
@@ -562,7 +567,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
       {/* --- TAB: PAGE (CALCULATOR UI) --- */}
       {activeTab === 'page' && (
         <div className="bg-white dark:bg-[#1A1D23] rounded-[40px] shadow-[0_4px_30px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-white/5 overflow-hidden w-full relative z-10 animate-in fade-in slide-in-from-bottom-2">
-          {/* Calculator Header */}
+          {/* ... (Header and Calculator Inputs remain unchanged) ... */}
           <div className="bg-slate-900 dark:bg-black p-8 md:p-10 text-white transition-all">
             <div className="flex flex-col gap-4">
               <h1 className="sr-only">Calculadora de Rescisão Trabalhista em {cityName}</h1>
@@ -609,7 +614,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
           <div className="p-8 md:p-12">
             {step === 'input' && (
               <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                
+                {/* ... (Existing Input Fields remain unchanged - Section 1, 2, 3) ... */}
                 {/* Section 1 */}
                 <div className="space-y-6">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -801,7 +806,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
               </div>
             )}
             
-            {/* ... Rest of steps (lead and result) identical to original ... */}
+            {/* ... Rest of steps (lead and result) remain unchanged ... */}
             {step === 'lead' && ( 
                 <div className="max-w-md mx-auto py-12 animate-in fade-in zoom-in duration-300">
                     <div className="text-center mb-8">
@@ -1087,13 +1092,44 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
 
                     {/* Right Column (Widget Config) */}
                     <div className="space-y-6">
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        
+                        {/* WhatsApp Message Config - NEW SECTION */}
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm space-y-6">
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <MessageCircle size={24} className="text-green-500" />
+                                WhatsApp & Contato
+                            </h3>
+                            
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Número de Destino</label>
+                                <input 
+                                    type="tel" 
+                                    value={customPhoneNumber}
+                                    onChange={(e) => setCustomPhoneNumber(e.target.value)}
+                                    placeholder={companyProfile.phone || "5511999999999"}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-green-500 outline-none dark:text-white transition-all"
+                                />
+                                <p className="text-xs text-slate-400 mt-1">Deixe em branco para usar o telefone do perfil da empresa.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Mensagem Inicial</label>
+                                <textarea 
+                                    value={whatsappMessage}
+                                    onChange={(e) => setWhatsappMessage(e.target.value)}
+                                    rows={3}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-green-500 outline-none dark:text-white transition-all resize-none"
+                                />
+                                <p className="text-xs text-slate-400 mt-1">Texto pré-preenchido quando o cliente clicar no botão.</p>
+                            </div>
+                        </div>
+
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2 pt-4">
                             <Palette size={24} className="text-purple-500" />
                             Widget Flutuante
                         </h3>
 
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm space-y-6">
-                            
                             {/* Color Picker */}
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Cor Principal</label>
@@ -1239,8 +1275,8 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
       )}
 
       {/* Floating WhatsApp Button (Global) */}
-      {companyProfile.phone && (
-        <a href={`https://wa.me/55${companyProfile.phone.replace(/\D/g, '')}?text=${encodeURIComponent(WHATSAPP_MSG)}`} target="_blank" rel="noreferrer" className="fixed bottom-8 right-8 z-50 bg-[#25D366] hover:bg-[#128C7E] text-white p-4 rounded-full shadow-[0_8px_30px_rgba(37,211,102,0.4)] transition-all duration-300 hover:scale-110 group" title="Falar com Especialista" aria-label="Falar no WhatsApp">
+      {activePhone && (
+        <a href={`https://wa.me/55${activePhone.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMessage)}`} target="_blank" rel="noreferrer" className="fixed bottom-8 right-8 z-50 bg-[#25D366] hover:bg-[#128C7E] text-white p-4 rounded-full shadow-[0_8px_30px_rgba(37,211,102,0.4)] transition-all duration-300 hover:scale-110 group" title="Falar com Especialista" aria-label="Falar no WhatsApp">
           <MessageCircle size={28} className="text-white" />
           <span className="absolute right-16 top-1/2 -translate-y-1/2 bg-white text-slate-900 text-xs font-bold px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-lg pointer-events-none">Falar com Advogado</span>
         </a>

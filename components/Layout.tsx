@@ -77,8 +77,8 @@ export const Layout = ({ children, activePage, setActivePage, userProfile, onLog
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <PieChart size={20} /> },
-    { id: 'calculator', label: 'Calculadora', icon: <Calculator size={20} /> },
     { id: 'leads', label: 'CRM', icon: <User size={20} /> },
+    { id: 'calculator', label: 'Calculadora', icon: <Calculator size={20} /> },
     { id: 'banner', label: 'Criador de Banner', icon: <Image size={20} /> },
     { id: 'interactive-card', label: 'Cartão Interativo', icon: <IdCard size={20} /> },
     { id: 'company', label: 'Empresa', icon: <Building2 size={20} /> },
