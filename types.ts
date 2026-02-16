@@ -59,14 +59,28 @@ export interface Lead {
   status: 'New' | 'Contacted' | 'Converted' | 'Lost';
 }
 
+export interface UserStats {
+    leadsCount: number;
+    bannersCount: number;
+    cardsCount: number;
+}
+
 export interface UserProfile {
+  id?: string;
   name: string;
   firmName: string; // Displayed on Calculator Header
   email: string;
   phone: string;
-  plan: 'Trial' | 'Pro';
+  plan: 'Trial' | 'Pro' | 'Premium'; // Pro = Cortesia, Premium = Pago
   trialEndsAt: string; // ISO Date
-  subscriptionStatus: 'Active' | 'Past_Due' | 'Canceled';
+  subscriptionStatus: 'Active' | 'Past_Due' | 'Canceled' | 'Disabled';
+  isAdmin?: boolean;
+  stats?: UserStats;
+  
+  // New Date Fields for Admin Tracking
+  createdAt: string; // Data de acesso ao sistema
+  courtesyStartDate?: string; // Data que iniciou cortesia
+  paidStartDate?: string; // Data que iniciou pagante
 }
 
 export interface LawyerProfile {

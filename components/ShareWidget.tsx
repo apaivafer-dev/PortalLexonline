@@ -309,7 +309,7 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
                     </div>
                     <div>
                         <h2 className="text-3xl font-bold">Divulgação & Integração</h2>
-                        <p className="text-indigo-100 mt-1">Ferramentas para instalar a calculadora no seu site e capturar leads.</p>
+                        <p className="text-indigo-100 mt-1">Ferramentas para instalar a calculadora no seu site e capturar contatos no CRM.</p>
                     </div>
                 </div>
             </div>

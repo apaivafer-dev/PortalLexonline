@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
-import { User, CreditCard, Save, CheckCircle, AlertTriangle, Calendar, UserCircle, Crown } from 'lucide-react';
+import { User, CreditCard, Save, CheckCircle, AlertTriangle, Calendar, UserCircle, Crown, ShieldCheck, Star } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 
 interface ProfileSettingsProps {
@@ -114,25 +114,33 @@ export const ProfileSettings = ({ profile, onUpdate }: ProfileSettingsProps) => 
       {activeTab === 'plan' && (
         <div className="animate-in slide-in-from-bottom-2 fade-in duration-300 w-full">
           <div className={`p-8 rounded-xl border shadow-sm relative overflow-hidden
-             ${profile.plan === 'Trial' ? 'bg-orange-50 border-orange-200 dark:bg-orange-900/10 dark:border-orange-800' : 'bg-green-50 border-green-200'}
+             ${profile.plan === 'Trial' ? 'bg-orange-50 border-orange-200 dark:bg-orange-900/10 dark:border-orange-800' : 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800'}
           `}>
-             <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-                <CreditCard className="text-slate-600 dark:text-slate-400" />
-                Detalhes da Assinatura
-             </h3>
+             <div className="flex items-center gap-2 mb-6">
+                <div className={`p-2 rounded-lg ${profile.plan === 'Trial' ? 'bg-orange-100 text-orange-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                    {profile.plan === 'Trial' ? <CreditCard size={24} /> : <ShieldCheck size={24} />}
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white">
+                    Detalhes da Assinatura
+                </h3>
+             </div>
 
-             <div className="flex flex-col md:flex-row gap-8">
+             <div className="flex flex-col lg:flex-row gap-10">
                  {/* Status Column */}
                  <div className="flex-1 space-y-6">
                      <div>
                         <span className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Status Atual</span>
                         <div className="mt-2">
-                            <span className={`px-4 py-1.5 rounded-full text-sm font-bold inline-flex items-center gap-2
-                                ${profile.plan === 'Trial' ? 'bg-orange-200 text-orange-800' : 'bg-green-200 text-green-800'}
-                            `}>
-                                {profile.plan === 'Trial' ? <AlertTriangle size={14} /> : <CheckCircle size={14} />}
-                                {profile.plan === 'Trial' ? 'Período de Teste' : 'Assinatura Pro'}
-                            </span>
+                            {profile.plan === 'Trial' ? (
+                                <span className="px-4 py-1.5 rounded-full text-sm font-bold inline-flex items-center gap-2 bg-orange-200 text-orange-800">
+                                    <AlertTriangle size={14} /> Período de Teste
+                                </span>
+                            ) : (
+                                <span className="px-4 py-2 rounded-full text-base font-bold inline-flex items-center gap-2 bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30">
+                                    <Star size={16} className="fill-emerald-600 dark:fill-emerald-400 text-emerald-600 dark:text-emerald-400" /> 
+                                    Cortesia Ativa – Cliente Lex Online
+                                </span>
+                            )}
                         </div>
                      </div>
 
@@ -148,29 +156,29 @@ export const ProfileSettings = ({ profile, onUpdate }: ProfileSettingsProps) => 
                          </div>
                      )}
 
-                     {profile.plan === 'Pro' && (
-                         <div className="space-y-2">
-                            <p className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-medium">
-                                <Calendar size={18} className="text-indigo-500" />
-                                Renovação em 25/11/2023
+                     {/* Custom logic for "Pro" users (Courtesy) */}
+                     {profile.plan !== 'Trial' && (
+                         <div className="space-y-3 bg-white dark:bg-slate-800 p-5 rounded-xl border border-emerald-100 dark:border-emerald-900/50 shadow-sm">
+                            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">Parabéns!</span> Sua assinatura é uma cortesia exclusiva da Lex Online e permanecerá ativa enquanto seu contrato com a Lex Online estiver vigente.
                             </p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400">
-                                Seu plano está ativo e você tem acesso ilimitado a todas as ferramentas.
-                            </p>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-700">
+                                <CheckCircle size={14} className="text-emerald-500" /> Acesso total a todas as ferramentas
+                            </div>
                          </div>
                      )}
                  </div>
 
                  {/* Divider */}
-                 <div className="hidden md:block w-px bg-slate-200 dark:bg-slate-700/50"></div>
+                 <div className="hidden lg:block w-px bg-slate-200 dark:bg-slate-700/50"></div>
 
                  {/* Action Column */}
                  <div className="flex-1 flex flex-col justify-center space-y-4">
                      {profile.plan === 'Trial' ? (
                          <>
                             <div>
-                                <p className="text-xs text-slate-500 mb-1 uppercase tracking-wide">Valor da Assinatura</p>
-                                <div className="text-3xl font-bold text-slate-800 dark:text-white">R$ 29,90 <span className="text-sm font-normal text-slate-500">/mês</span></div>
+                                <p className="text-xs text-slate-500 mb-1 uppercase tracking-wide">Valor do Plano</p>
+                                <div className="text-3xl font-bold text-slate-800 dark:text-white">R$ 99,90 <span className="text-sm font-normal text-slate-500">/mês</span></div>
                             </div>
                             <button className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 text-white py-3 rounded-xl font-bold transition-colors shadow-lg">
                                 Assinar Agora
@@ -178,14 +186,29 @@ export const ProfileSettings = ({ profile, onUpdate }: ProfileSettingsProps) => 
                             <p className="text-xs text-center text-slate-500">Cancele a qualquer momento.</p>
                          </>
                      ) : (
-                         <>
-                            <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg font-medium transition-colors">
-                                Alterar Cartão de Crédito
-                            </button>
-                            <button className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 py-2.5 rounded-lg font-medium transition-colors">
-                                Ver Histórico de Faturas
-                            </button>
-                         </>
+                         <div className="bg-slate-50 dark:bg-white/5 p-6 rounded-xl border border-slate-200 dark:border-white/10 text-center">
+                             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">Resumo da Fatura</p>
+                             
+                             <div className="space-y-3 mb-6">
+                                 <div className="flex justify-between items-center text-sm">
+                                     <span className="text-slate-600 dark:text-slate-300">Plano Pro Mensal</span>
+                                     <span className="font-medium text-slate-900 dark:text-white">R$ 99,90</span>
+                                 </div>
+                                 <div className="flex justify-between items-center text-sm">
+                                     <span className="text-emerald-600 dark:text-emerald-400 font-medium">Desconto Cliente Lex</span>
+                                     <span className="font-medium text-emerald-600 dark:text-emerald-400">- R$ 99,90</span>
+                                 </div>
+                                 <div className="h-px bg-slate-200 dark:bg-slate-700"></div>
+                                 <div className="flex justify-between items-center">
+                                     <span className="font-bold text-slate-800 dark:text-white">Total a Pagar</span>
+                                     <span className="text-2xl font-black text-slate-900 dark:text-white">R$ 0,00</span>
+                                 </div>
+                             </div>
+
+                             <button disabled className="w-full bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 py-2.5 rounded-lg font-bold text-sm cursor-default flex items-center justify-center gap-2">
+                                <CheckCircle size={16} /> Assinatura Válida
+                             </button>
+                         </div>
                      )}
                  </div>
              </div>

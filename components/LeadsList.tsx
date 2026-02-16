@@ -3,17 +3,6 @@ import { Search, Download, Eye, X, FileText, Calendar, DollarSign, User, Phone, 
 import { formatCurrency, formatDate } from '../lib/utils';
 import { Lead } from '../types';
 
-// Initial Mock Data
-const INITIAL_LEADS: Lead[] = [
-  { id: '1', name: 'João Silva', email: 'joao@email.com', phone: '11999999999', createdAt: '2023-10-25', estimatedValue: 12500, status: 'New' },
-  { id: '2', name: 'Maria Souza', email: 'maria@email.com', phone: '11988888888', createdAt: '2023-10-24', estimatedValue: 8400, status: 'Contacted' },
-  { id: '3', name: 'Pedro Santos', email: 'pedro@email.com', phone: '11977777777', createdAt: '2023-10-23', estimatedValue: 25000, status: 'Converted' },
-  { id: '4', name: 'Ana Lima', email: 'ana@email.com', phone: '11966666666', createdAt: '2023-10-22', estimatedValue: 5600, status: 'Lost' },
-  { id: '5', name: 'Carlos Pereira', email: 'carlos@email.com', phone: '11955555555', createdAt: '2023-10-21', estimatedValue: 45000, status: 'New' },
-  { id: '6', name: 'Fernanda Costa', email: 'fer@email.com', phone: '11944444444', createdAt: '2023-10-20', estimatedValue: 18200, status: 'New' },
-  { id: '7', name: 'Roberto Alves', email: 'beto@email.com', phone: '11933333333', createdAt: '2023-10-19', estimatedValue: 32100, status: 'Contacted' },
-];
-
 const DATE_FILTERS = [
     { id: 'today', label: 'Hoje' },
     { id: '7d', label: '7 dias' },
@@ -30,9 +19,15 @@ const STATUS_CONFIG = {
     'Lost': { label: 'Perdido', color: 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' }
 };
 
-export const LeadsList = () => {
-  // Data State
-  const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
+interface LeadsListProps {
+    leads: Lead[];
+    onUpdateLeads: (leads: Lead[]) => void;
+    initialOpenLeadId?: string | null;
+    onClearTarget?: () => void;
+}
+
+export const LeadsList = ({ leads, onUpdateLeads, initialOpenLeadId, onClearTarget }: LeadsListProps) => {
+  // View State
   const [viewMode, setViewMode] = useState<'list' | 'board'>('board');
 
   // Filter State
@@ -52,6 +47,22 @@ export const LeadsList = () => {
   // Drag and Drop State
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<Lead['status'] | null>(null);
+
+  // Auto-open modal if triggered from notification
+  useEffect(() => {
+      if (initialOpenLeadId) {
+          setExpandedLeadId(initialOpenLeadId);
+          // If in list mode, ensure we toggle open. In board mode, the modal opens.
+          // Note: Logic inside render handles both 'list row expansion' and 'board modal' based on expandedLeadId
+          
+          const lead = leads.find(l => l.id === initialOpenLeadId);
+          if (lead) {
+              setActiveMessage(generateTemplate(lead));
+          }
+          
+          if(onClearTarget) onClearTarget();
+      }
+  }, [initialOpenLeadId, leads]);
 
   // Helper to calculate date range from filter ID
   const calculateDateRange = (filterId: string) => {
@@ -117,7 +128,7 @@ export const LeadsList = () => {
   };
 
   const handleUpdateStatus = (id: string, newStatus: Lead['status']) => {
-      setLeads(prev => prev.map(lead => 
+      onUpdateLeads(leads.map(lead => 
           lead.id === id ? { ...lead, status: newStatus } : lead
       ));
   };
@@ -223,7 +234,7 @@ export const LeadsList = () => {
                   </div>
                   
                   <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-                      <div className="text-sm text-slate-500 dark:text-slate-400 mb-2 font-medium">Dados do Lead</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mb-2 font-medium">Dados do Contato</div>
                       <div className="space-y-2 text-sm">
                           <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
                               <User size={14} className="text-indigo-500" /> {lead.name}
@@ -273,7 +284,7 @@ export const LeadsList = () => {
                               className="w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
                           >
                               <Phone size={18} />
-                              Ligar para o Lead
+                              Ligar para o Cliente
                           </button>
                       </div>
                   </div>
@@ -313,8 +324,8 @@ export const LeadsList = () => {
         
         {/* Row 1: Title */}
         <div>
-            <h2 className="text-xl font-bold text-slate-800 dark:text-white">Gerenciamento de Leads</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Visualize e entre em contato com potenciais clientes.</p>
+            <h2 className="text-xl font-bold text-slate-800 dark:text-white">CRM</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Gestão de Relacionamento e Oportunidades.</p>
         </div>
 
         {/* Row 2: Unified Toolbar */}
@@ -489,7 +500,7 @@ export const LeadsList = () => {
                         {filteredLeads.length === 0 && (
                             <tr>
                                 <td colSpan={6} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
-                                    Nenhum lead encontrado com os filtros selecionados.
+                                    Nenhum contato encontrado com os filtros selecionados.
                                 </td>
                             </tr>
                         )}
@@ -497,7 +508,7 @@ export const LeadsList = () => {
                 </table>
             </div>
             <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 text-center">
-                Mostrando {filteredLeads.length} leads
+                Mostrando {filteredLeads.length} contatos
             </div>
         </div>
       )}
@@ -632,7 +643,7 @@ export const LeadsList = () => {
                                 {STATUS_CONFIG[selectedLeadForModal.status].label}
                             </span>
                         </h3>
-                        <p className="text-sm text-slate-500">Detalhes do Lead • Estimativa: <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">{formatCurrency(selectedLeadForModal.estimatedValue)}</span></p>
+                        <p className="text-sm text-slate-500">Detalhes do Contato • Estimativa: <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">{formatCurrency(selectedLeadForModal.estimatedValue)}</span></p>
                     </div>
                     <button 
                         onClick={() => setExpandedLeadId(null)}

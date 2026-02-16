@@ -54,7 +54,7 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
                     <CheckCircle2 className="text-green-400" /> Geração de PDFs profissionais
                 </div>
                 <div className="flex items-center gap-3 text-indigo-100">
-                    <CheckCircle2 className="text-green-400" /> Captura de Leads Integrada
+                    <CheckCircle2 className="text-green-400" /> CRM Integrado
                 </div>
             </div>
         </div>

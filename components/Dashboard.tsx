@@ -1,16 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Users, FileText, Code, TrendingUp, Calendar, Filter, ArrowRight, ChevronDown } from 'lucide-react';
-
-const DATA_CHART = [
-  { name: 'Seg', leads: 4 },
-  { name: 'Ter', leads: 3 },
-  { name: 'Qua', leads: 7 },
-  { name: 'Qui', leads: 5 },
-  { name: 'Sex', leads: 8 },
-  { name: 'Sáb', leads: 2 },
-  { name: 'Dom', leads: 1 },
-];
 
 const FILTER_OPTIONS = [
     { id: 'today', label: 'Hoje' },
@@ -21,9 +11,69 @@ const FILTER_OPTIONS = [
     { id: 'custom', label: 'Personalizado' },
 ];
 
+// Helper para gerar dados fictícios baseados no intervalo de datas
+const generateMockData = (startStr: string, endStr: string) => {
+    const data = [];
+    const current = new Date(startStr);
+    // Ajuste de fuso horário simples para garantir contagem correta de dias se necessário
+    // Aqui assumimos que as strings vêm no formato YYYY-MM-DD
+    const end = new Date(endStr);
+    
+    // Adiciona o timezone offset para evitar problemas de virada de dia na visualização
+    current.setMinutes(current.getMinutes() + current.getTimezoneOffset());
+    end.setMinutes(end.getMinutes() + end.getTimezoneOffset());
+
+    while (current <= end) {
+        // Gerar número aleatório de leads entre 0 e 15
+        const leads = Math.floor(Math.random() * 15);
+        
+        data.push({
+            date: current.toISOString().split('T')[0], // YYYY-MM-DD
+            leads: leads
+        });
+        
+        current.setDate(current.getDate() + 1);
+    }
+    return data;
+};
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        const dateObj = new Date(label);
+        // Adiciona offset para garantir dia correto na formatação em PT-BR
+        dateObj.setMinutes(dateObj.getMinutes() + dateObj.getTimezoneOffset());
+
+        const dateStr = dateObj.toLocaleDateString('pt-BR', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+
+        // Capitalize first letter
+        const formattedDate = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+
+        return (
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 min-w-[200px]">
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 border-b border-slate-100 dark:border-slate-700 pb-2">
+                    {formattedDate}
+                </p>
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
+                    <p className="text-sm font-medium text-slate-800 dark:text-white">
+                        Contato(s): <span className="font-bold text-lg ml-1">{payload[0].value}</span>
+                    </p>
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
+
 export const Dashboard = () => {
-  const [selectedFilter, setSelectedFilter] = useState('today');
+  const [selectedFilter, setSelectedFilter] = useState('7d'); // Padrão 7 dias para ver melhor o gráfico
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [chartData, setChartData] = useState<any[]>([]);
   const startDateInputRef = useRef<HTMLInputElement>(null);
 
   // Helper to get dates based on filter
@@ -36,10 +86,10 @@ export const Dashboard = () => {
               // start is today
               break;
           case '7d':
-              start.setDate(end.getDate() - 7);
+              start.setDate(end.getDate() - 6); // Inclui hoje
               break;
           case '30d':
-              start.setDate(end.getDate() - 30);
+              start.setDate(end.getDate() - 29);
               break;
           case 'month':
               start.setDate(1);
@@ -62,7 +112,10 @@ export const Dashboard = () => {
   useEffect(() => {
       if (selectedFilter !== 'custom') {
           const range = calculateDateRange(selectedFilter);
-          if (range) setDateRange(range);
+          if (range) {
+              setDateRange(range);
+              setChartData(generateMockData(range.start, range.end));
+          }
       } else {
            // If switched to custom via dropdown, focus start date
            if (startDateInputRef.current) {
@@ -71,10 +124,20 @@ export const Dashboard = () => {
       }
   }, [selectedFilter]);
 
-  // Initial set for Today
+  // Update chart when manual dates change
   useEffect(() => {
-     const range = calculateDateRange('today');
-     if (range) setDateRange(range);
+      if (selectedFilter === 'custom' && dateRange.start && dateRange.end) {
+          setChartData(generateMockData(dateRange.start, dateRange.end));
+      }
+  }, [dateRange, selectedFilter]);
+
+  // Initial set
+  useEffect(() => {
+     const range = calculateDateRange('7d');
+     if (range) {
+         setDateRange(range);
+         setChartData(generateMockData(range.start, range.end));
+     }
   }, []);
 
   const handleManualDateChange = (field: 'start' | 'end', value: string) => {
@@ -82,36 +145,36 @@ export const Dashboard = () => {
       setSelectedFilter('custom'); // Switch to custom mode
   };
 
-  const getFilterLabel = () => {
-      if (selectedFilter === 'custom') return 'Período Personalizado';
-      return FILTER_OPTIONS.find(f => f.id === selectedFilter)?.label;
-  };
+  // Calculate ticks for XAxis (Only first and last)
+  const customTicks = chartData.length > 0 
+      ? [chartData[0].date, chartData[chartData.length - 1].date] 
+      : [];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500">
       
       {/* Header & Filter Toolbar */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 bg-white dark:bg-[#1A1D23] p-8 rounded-[32px] shadow-[0_2px_20px_rgba(0,0,0,0.02)] dark:shadow-none">
         <div>
-            <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <TrendingUp className="text-indigo-600" size={24} />
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                <TrendingUp className="text-slate-900 dark:text-white" size={28} />
                 Visão Geral
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-                Métricas de desempenho: <span className="font-semibold text-indigo-600 dark:text-indigo-400">{getFilterLabel()}</span>
+            <p className="text-base text-slate-500 dark:text-slate-400 mt-1">
+                Métricas de desempenho
             </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-2 w-full xl:w-auto">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
             {/* Date Presets Dropdown */}
-             <div className="relative w-full sm:w-auto">
+             <div className="relative w-full sm:w-auto group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Calendar size={14} className="text-slate-400" />
+                    <Calendar size={16} className="text-slate-400" />
                 </div>
                 <select
                     value={selectedFilter}
                     onChange={(e) => setSelectedFilter(e.target.value)}
-                    className="pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none w-full sm:w-auto dark:text-white focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer h-[38px]"
+                    className="pl-10 pr-10 py-3 bg-slate-50 dark:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10 rounded-2xl text-sm font-medium outline-none w-full sm:w-auto dark:text-white focus:ring-2 focus:ring-slate-200 dark:focus:ring-white/20 appearance-none cursor-pointer h-[48px] transition-all"
                 >
                     {FILTER_OPTIONS.map((opt) => (
                         <option key={opt.id} value={opt.id}>
@@ -119,29 +182,29 @@ export const Dashboard = () => {
                         </option>
                     ))}
                 </select>
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <ChevronDown size={14} className="text-slate-400" />
+                <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                    <ChevronDown size={16} className="text-slate-400" />
                 </div>
             </div>
 
             {/* Date Inputs */}
-            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-700 h-[38px] w-full sm:w-auto justify-center">
+            <div className="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-1.5 rounded-2xl border border-transparent h-[48px] w-full sm:w-auto justify-center">
                 <div className="relative h-full">
                     <input 
                         ref={startDateInputRef}
                         type="date" 
                         value={dateRange.start}
                         onChange={(e) => handleManualDateChange('start', e.target.value)}
-                        className="bg-transparent text-sm text-slate-600 dark:text-slate-300 border-none outline-none focus:ring-0 px-1 w-[130px] h-full"
+                        className="bg-transparent text-sm font-medium text-slate-600 dark:text-slate-300 border-none outline-none focus:ring-0 px-2 w-[130px] h-full rounded-xl hover:bg-white dark:hover:bg-white/5 transition-colors"
                     />
                 </div>
-                <span className="text-slate-400"><ArrowRight size={14}/></span>
+                <span className="text-slate-300"><ArrowRight size={16}/></span>
                 <div className="relative h-full">
                     <input 
                         type="date" 
                         value={dateRange.end}
                         onChange={(e) => handleManualDateChange('end', e.target.value)}
-                        className="bg-transparent text-sm text-slate-600 dark:text-slate-300 border-none outline-none focus:ring-0 px-1 w-[130px] h-full"
+                        className="bg-transparent text-sm font-medium text-slate-600 dark:text-slate-300 border-none outline-none focus:ring-0 px-2 w-[130px] h-full rounded-xl hover:bg-white dark:hover:bg-white/5 transition-colors"
                     />
                 </div>
             </div>
@@ -149,74 +212,86 @@ export const Dashboard = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Leads Capturados', value: selectedFilter === 'today' ? '12' : '128', icon: <Users size={20} className="text-blue-500"/>, change: '+12%' },
-          { label: 'Cálculos Gerados', value: selectedFilter === 'today' ? '45' : '345', icon: <FileText size={20} className="text-indigo-500"/>, change: '+24%' },
-          { label: 'Taxa Conversão', value: '4.2%', icon: <Filter size={20} className="text-green-500"/>, change: '+0.5%' },
-          { label: 'Valor em Potencial', value: selectedFilter === 'today' ? 'R$ 42k' : 'R$ 450k', icon: <Code size={20} className="text-purple-500"/>, change: 'Pipeline' },
+          { label: 'Contatos CRM', value: selectedFilter === 'today' ? '12' : '128', icon: <Users size={24} className="text-blue-500"/>, change: '+12%', color: 'bg-blue-50 text-blue-600' },
+          { label: 'Cálculos Gerados', value: selectedFilter === 'today' ? '45' : '345', icon: <FileText size={24} className="text-violet-500"/>, change: '+24%', color: 'bg-violet-50 text-violet-600' },
+          { label: 'Taxa Conversão', value: '4.2%', icon: <Filter size={24} className="text-emerald-500"/>, change: '+0.5%', color: 'bg-emerald-50 text-emerald-600' },
+          { label: 'Valor Potencial', value: selectedFilter === 'today' ? 'R$ 42k' : 'R$ 450k', icon: <Code size={24} className="text-amber-500"/>, change: 'Pipeline', color: 'bg-amber-50 text-amber-600' },
         ].map((stat, i) => (
-          <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all hover:shadow-md">
+          <div key={i} className="bg-white dark:bg-[#1A1D23] p-8 rounded-[32px] shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-none hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-all duration-300 group">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{stat.label}</p>
-                <h3 className="text-2xl font-bold text-slate-800 dark:text-white mt-1 animate-in slide-in-from-bottom-2 fade-in duration-300 key-{selectedFilter}">
+                <p className="text-sm font-semibold text-slate-400 uppercase tracking-wide">{stat.label}</p>
+                <h3 className="text-4xl font-bold text-slate-900 dark:text-white mt-3 animate-in slide-in-from-bottom-2 fade-in duration-300 key-{selectedFilter} tracking-tight">
                     {stat.value}
                 </h3>
               </div>
-              <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">{stat.icon}</div>
+              <div className={`p-3 rounded-2xl ${stat.color.replace('text-', 'bg-opacity-20 ')} dark:bg-white/5`}>{stat.icon}</div>
             </div>
-            <p className="text-xs text-green-600 mt-2 font-medium bg-green-50 dark:bg-green-900/20 w-fit px-2 py-0.5 rounded-full">
-                {stat.change} <span className="text-green-600/70 dark:text-green-400/70 font-normal">vs anterior</span>
-            </p>
+            <div className="mt-4 flex items-center gap-2">
+                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full">
+                    {stat.change}
+                </span>
+                <span className="text-xs text-slate-400 font-medium">vs período anterior</span>
+            </div>
           </div>
         ))}
       </div>
 
       {/* Main Chart */}
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex justify-between items-center mb-6">
+      <div className="bg-white dark:bg-[#1A1D23] p-8 rounded-[32px] shadow-[0_2px_20px_rgba(0,0,0,0.02)] dark:shadow-none">
+          <div className="flex justify-between items-center mb-8">
             <div>
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Fluxo de Captura</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Quantidade de leads por dia no período</p>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Fluxo de Captura</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Acompanhamento diário de contatos</p>
             </div>
           </div>
-          <div className="h-80 w-full">
+          <div className="h-[400px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={DATA_CHART} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} className="dark:opacity-10" />
+              <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                <defs>
+                    <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                    </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} className="dark:opacity-5" />
                 <XAxis 
-                    dataKey="name" 
+                    dataKey="date" 
                     stroke="#94a3b8" 
                     fontSize={12} 
                     tickLine={false} 
                     axisLine={false} 
                     dy={10}
+                    ticks={customTicks}
+                    interval={0} // Force show all ticks in the 'ticks' array
+                    tickFormatter={(value) => {
+                        const date = new Date(value);
+                        date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
+                        // Format example: "1 de set. de 2025"
+                        return date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' });
+                    }}
+                    tick={{ fill: '#94a3b8', fontWeight: 500 }}
                 />
                 <YAxis 
                     stroke="#94a3b8" 
                     fontSize={12} 
                     tickLine={false} 
                     axisLine={false} 
+                    tick={{ fill: '#94a3b8', fontWeight: 500 }}
                 />
-                <Tooltip 
-                    cursor={{fill: 'rgba(99, 102, 241, 0.1)'}}
-                    contentStyle={{ 
-                        borderRadius: '12px', 
-                        border: 'none', 
-                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        padding: '12px'
-                    }}
-                />
-                <Bar 
+                <Tooltip content={<CustomTooltip />} />
+                <Line 
+                    type="monotone" 
                     dataKey="leads" 
-                    fill="#6366f1" 
-                    radius={[6, 6, 0, 0]} 
-                    barSize={40}
-                    animationDuration={1000}
+                    stroke="#6366f1" 
+                    strokeWidth={4}
+                    dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                    activeDot={{ r: 8, fill: '#4f46e5', stroke: '#fff', strokeWidth: 3 }}
+                    animationDuration={1500}
                 />
-              </BarChart>
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
