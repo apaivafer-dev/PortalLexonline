@@ -45,7 +45,8 @@ import {
   MousePointerClick,
   Monitor,
   Move,
-  Target
+  Target,
+  Eye
 } from 'lucide-react';
 
 const INITIAL_INPUT: CalculatorInput = {
@@ -276,6 +277,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
   const [googleAdsId, setGoogleAdsId] = useState('');
   const [googleAdsLabel, setGoogleAdsLabel] = useState('');
   const [copied, setCopied] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Message & Contact State
   const [whatsappMessage, setWhatsappMessage] = useState(DEFAULT_WHATSAPP_MSG);
@@ -960,16 +962,24 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
                             Defina se sua calculadora está acessível publicamente.
                         </p>
                     </div>
-                    <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm">
-                        <span className={`text-sm font-bold px-3 ${isPublished ? 'text-green-500' : 'text-slate-400'}`}>
-                            {isPublished ? 'Publicado' : 'Rascunho'}
-                        </span>
+                    <div className="flex flex-col items-end gap-3">
                         <button 
-                            onClick={() => setIsPublished(!isPublished)}
-                            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${isPublished ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                            onClick={() => setIsPreviewOpen(true)}
+                            className="flex items-center gap-2 text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40"
                         >
-                            <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${isPublished ? 'translate-x-7' : 'translate-x-1'}`} />
+                            <Eye size={16} /> Ver prévia
                         </button>
+                        <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm">
+                            <span className={`text-sm font-bold px-3 ${isPublished ? 'text-green-500' : 'text-slate-400'}`}>
+                                {isPublished ? 'Publicado' : 'Rascunho'}
+                            </span>
+                            <button 
+                                onClick={() => setIsPublished(!isPublished)}
+                                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${isPublished ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                            >
+                                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${isPublished ? 'translate-x-7' : 'translate-x-1'}`} />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -1269,6 +1279,36 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
                             </code>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Preview Modal */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-[#1A1D23] w-full max-w-6xl h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200 dark:border-white/10">
+                <div className="p-4 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-slate-50 dark:bg-white/5">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg text-indigo-600 dark:text-indigo-400">
+                            <Monitor size={20} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-slate-900 dark:text-white">Prévia da Página</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Visualização como cliente</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors">
+                            <ExternalLink size={16} /> Abrir em nova aba
+                        </a>
+                        <button onClick={() => setIsPreviewOpen(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-full transition-colors text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
+                <div className="flex-1 bg-slate-100 dark:bg-black relative">
+                     <iframe src={publicUrl} className="w-full h-full border-0" title="Prévia da Calculadora" />
                 </div>
             </div>
         </div>

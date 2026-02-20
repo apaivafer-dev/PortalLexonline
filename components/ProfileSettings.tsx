@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { UserProfile } from '../types';
-import { User, CreditCard, Save, CheckCircle, AlertTriangle, Calendar, UserCircle, Crown, ShieldCheck, Star } from 'lucide-react';
+import { UserProfile, CompanyProfile } from '../types';
+import { User, CreditCard, Save, CheckCircle, AlertTriangle, Calendar, UserCircle, Crown, ShieldCheck, Star, Building2 } from 'lucide-react';
 import { formatDate } from '../lib/utils';
+import { CompanySettings } from './CompanySettings';
 
 interface ProfileSettingsProps {
   profile: UserProfile;
   onUpdate: (profile: UserProfile) => void;
+  company: CompanyProfile;
+  onUpdateCompany: (company: CompanyProfile) => void;
 }
 
-export const ProfileSettings = ({ profile, onUpdate }: ProfileSettingsProps) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'plan'>('profile');
+export const ProfileSettings = ({ profile, onUpdate, company, onUpdateCompany }: ProfileSettingsProps) => {
+  const [activeTab, setActiveTab] = useState<'profile' | 'company' | 'plan'>('profile');
   const [formData, setFormData] = useState<UserProfile>(profile);
   const [isSaved, setIsSaved] = useState(false);
 
@@ -55,6 +58,15 @@ export const ProfileSettings = ({ profile, onUpdate }: ProfileSettingsProps) => 
                     : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:border-slate-300'}`}
         >
             <User size={18} /> Dados Pessoais
+        </button>
+        <button 
+            onClick={() => setActiveTab('company')}
+            className={`pb-4 px-2 font-medium text-sm transition-all flex items-center gap-2 border-b-2 whitespace-nowrap
+                ${activeTab === 'company' 
+                    ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' 
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:border-slate-300'}`}
+        >
+            <Building2 size={18} /> Empresa
         </button>
         <button 
             onClick={() => setActiveTab('plan')}
@@ -107,6 +119,13 @@ export const ProfileSettings = ({ profile, onUpdate }: ProfileSettingsProps) => 
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* TAB: COMPANY SETTINGS */}
+      {activeTab === 'company' && (
+        <div className="animate-in slide-in-from-bottom-2 fade-in duration-300 w-full">
+            <CompanySettings company={company} onUpdate={onUpdateCompany} hideHeader={true} />
         </div>
       )}
 

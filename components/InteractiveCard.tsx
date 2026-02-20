@@ -1,1278 +1,960 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { Type, Layout, Palette, Clock, Plus, ArrowLeft, Trash2, Save, Settings, Lock } from 'lucide-react';
-import { formatDate } from '../lib/utils';
+import QRCode from 'qrcode';
+import JSZip from 'jszip';
 import { UserProfile } from '../types';
+import { Image, Download, Settings } from 'lucide-react';
 
-// Declare types for window libraries
+// Declare types for Ionicons and window libraries
 declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'ion-icon': any;
+    }
+  }
   interface Window {
     jspdf: any;
   }
 }
 
-// --- TYPES ---
-interface CardButton {
+// --- CONSTANTS & CONFIG ---
+const NETWORK_DEFAULT_COLORS: Record<string, string> = {
+    whatsapp: '#25D366', telegram: '#0088cc', telefone: '#10b981', email: '#ef4444',
+    agendamento: '#8b5cf6', pagamento: '#22c55e', vcard: '#6366f1', linkedin: '#0A66C2',
+    site: '#3b82f6', behance: '#1769ff', loja: '#f59e0b', instagram: '#E4405F',
+    facebook: '#1877F2', youtube: '#FF0000', tiktok: '#000000', twitter: '#1DA1F2',
+    medium: '#000000', spotify: '#1DB954', discord: '#5865F2', localizacao: '#ea4335'
+};
+
+const REDES = [
+  {key: 'whatsapp', name: 'WhatsApp', urlPrefix: 'https://wa.me/', icon: 'logo-whatsapp'},
+  {key: 'telegram', name: 'Telegram', urlPrefix: 'https://t.me/', icon: 'send-outline'},
+  {key: 'telefone', name: 'Telefone', urlPrefix: 'tel:', icon: 'call-outline'},
+  {key: 'email', name: 'Email', urlPrefix: 'mailto:', icon: 'mail-outline'},
+  {key: 'agendamento', name: 'Agendamento', urlPrefix: 'https://calendly.com/', icon: 'calendar-outline'},
+  {key: 'pagamento', name: 'Pagamento', urlPrefix: 'https://pay.me/', icon: 'cash-outline'},
+  {key: 'vcard', name: 'Vcard', icon: 'person-circle-outline'},
+  {key: 'linkedin', name: 'LinkedIn', urlPrefix: 'https://linkedin.com/in/', icon: 'logo-linkedin'},
+  {key: 'site', name: 'Website', urlPrefix: 'https://', icon: 'globe-outline'},
+  {key: 'behance', name: 'Behance', urlPrefix: 'https://www.behance.net/', icon: 'logo-behance'},
+  {key: 'loja', name: 'Loja Online', urlPrefix: 'https://myshop.com/', icon: 'bag-handle-outline'},
+  {key: 'instagram', name: 'Instagram', urlPrefix: 'https://instagram.com/', icon: 'logo-instagram'},
+  {key: 'facebook', name: 'Facebook', urlPrefix: 'https://facebook.com/', icon: 'logo-facebook'},
+  {key: 'youtube', name: 'YouTube', urlPrefix: 'https://youtube.com/', icon: 'logo-youtube'},
+  {key: 'tiktok', name: 'TikTok', urlPrefix: 'https://tiktok.com/@', icon: 'logo-tiktok'},
+  {key: 'twitter', name: 'Twitter', urlPrefix: 'https://twitter.com/', icon: 'logo-twitter'},
+  {key: 'medium', name: 'Medium', urlPrefix: 'https://medium.com/@', icon: 'logo-medium'},
+  {key: 'spotify', name: 'Spotify', urlPrefix: 'https://open.spotify.com/', icon: 'musical-notes-outline'},
+  {key: 'discord', name: 'Discord', urlPrefix: 'https://discord.gg/', icon: 'logo-discord'},
+  {key: 'localizacao', name: 'Localização', urlPrefix: 'https://maps.google.com/?q=', icon: 'location-outline'}
+];
+
+const DEFAULT_BUTTON_STYLE = {
+    border: '#ffffff',
+    bg: 'transparent',
+    icon: '#ffffff',
+    label: '#ffffff',
+    fontFamily: 'Arial',
+    fontSize: '12px',
+    useNetworkColor: false,
+    previewBg: '#00ABE4'
+};
+
+interface ButtonConfig {
     active: boolean;
     title: string;
     social: string | null;
     url: string;
-    style: any;
+    vcardData?: any;
+    customColors?: { border?: string; bg?: string; icon?: string; label?: string };
+    customFont?: string;
+    customSize?: string;
 }
 
 interface CustomText {
+    id: string;
     text: string;
     font: string;
     size: string;
     color: string;
-    top: string;
-    left: string;
+    x: number;
+    y: number;
 }
-
-interface CardConfig {
-    id: string;
-    createdAt: string;
-    cardName: string; // "nomedocartão"
-    
-    // Configs
-    layout: string;
-    alignment: string;
-    slotRadius: string;
-    maxButtons: number;
-    useBrandColors: boolean;
-    
-    // Style
-    defaultButtonStyle: any;
-    
-    // Content
-    backgroundImage: string | null; // DataURL
-    buttons: CardButton[];
-    customTexts: CustomText[];
-}
-
-const DEFAULT_BUTTON_STYLE = { 
-    border: '#ffffff', 
-    bg: '#ffffff', // changed default to white for better visibility
-    icon: '#000000', 
-    label: '#ffffff', 
-    fontFamily: 'Arial', 
-    fontSize: '12px',
-    borderWidth: '2px'
-};
-
-const DEFAULT_CONFIG: Omit<CardConfig, 'id' | 'createdAt' | 'cardName'> = {
-    layout: '3x2',
-    alignment: 'center',
-    slotRadius: '8px',
-    maxButtons: 6,
-    useBrandColors: false,
-    defaultButtonStyle: DEFAULT_BUTTON_STYLE,
-    backgroundImage: null,
-    buttons: Array.from({length:6}, () => ({ active:false, title:'', social:null, url:'', style: null })),
-    customTexts: []
-};
-
-// --- MOCK DATA ---
-const generateMockCards = (): CardConfig[] => {
-    return Array.from({ length: 5 }).map((_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - i * 2);
-        date.setHours(10, 30 + i, 0);
-
-        // Create some fake buttons for preview
-        const buttons = Array.from({length: 6}, (__, bIdx) => {
-            if (bIdx < 3) {
-                return {
-                    active: true,
-                    title: ['WhatsApp', 'Instagram', 'Site'][bIdx],
-                    social: ['whatsapp', 'instagram', 'site'][bIdx],
-                    url: '#',
-                    style: null
-                };
-            }
-            return { active: false, title: '', social: null, url: '', style: null };
-        });
-
-        return {
-            id: `mock-card-${i}`,
-            createdAt: date.toISOString(),
-            cardName: `Cartão Digital ${i + 1}`,
-            layout: i % 2 === 0 ? '3x2' : 'list',
-            alignment: 'center',
-            slotRadius: '8px',
-            maxButtons: 6,
-            useBrandColors: i % 2 !== 0,
-            defaultButtonStyle: { ...DEFAULT_BUTTON_STYLE, bg: i % 2 === 0 ? 'transparent' : '#ffffff' },
-            backgroundImage: null, // No image in mock to keep simple, allows fallback color
-            buttons: buttons as CardButton[],
-            customTexts: []
-        };
-    });
-};
-
-// --- MINI PREVIEW COMPONENT ---
-const MiniCardPreview = ({ config, onClick, isLocked }: { config: CardConfig, onClick: () => void, isLocked?: boolean }) => {
-    const formattedDate = new Date(config.createdAt).toLocaleString('pt-BR', {
-        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-    });
-
-    return (
-        <div onClick={onClick} className={`group cursor-pointer flex flex-col gap-3 ${isLocked ? 'opacity-70' : ''}`}>
-            {/* Aspect Ratio Container (9:16 approx scaled) */}
-            <div className="relative w-full pt-[177%] bg-slate-200 dark:bg-slate-900 rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 transition-all duration-300 group-hover:shadow-lg group-hover:border-indigo-300 group-hover:scale-[1.02]">
-                
-                {/* Content Simulation */}
-                <div 
-                    className="absolute inset-0 bg-cover bg-center flex flex-col p-4"
-                    style={{ 
-                        backgroundImage: config.backgroundImage ? `url(${config.backgroundImage})` : 'linear-gradient(135deg, #00ABE4 0%, #0088cc 100%)'
-                    }}
-                >
-                    {/* Buttons Grid Simulation */}
-                    <div className={`mt-auto w-full grid gap-1 ${config.layout === 'list' ? 'grid-cols-1' : 'grid-cols-3'}`}>
-                        {config.buttons.slice(0, config.maxButtons).map((btn, idx) => (
-                            btn.active ? (
-                                <div key={idx} className="h-6 bg-white/20 rounded border border-white/40 flex items-center justify-center">
-                                    <div className="w-2 h-2 bg-white rounded-full opacity-80"></div>
-                                </div>
-                            ) : (
-                                <div key={idx} className="h-6 border border-white/10 border-dashed rounded"></div>
-                            )
-                        ))}
-                    </div>
-                </div>
-
-                {/* Hover Overlay */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                    {isLocked ? (
-                        <div className="bg-white text-red-600 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-1">
-                            <Lock size={12} /> Bloqueado
-                        </div>
-                    ) : (
-                        <div className="bg-white text-slate-900 px-3 py-1.5 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all shadow-lg flex items-center gap-1">
-                            <Settings size={12} /> Editar
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            <div className="px-1">
-                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{config.cardName}</h3>
-                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    <Clock size={10} />
-                    <span>Criado em: {formattedDate}</span>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 interface InteractiveCardProps {
     userProfile?: UserProfile;
 }
 
 export const InteractiveCard = ({ userProfile }: InteractiveCardProps) => {
-  const [viewMode, setViewMode] = useState<'gallery' | 'editor'>('gallery');
-  const [cards, setCards] = useState<CardConfig[]>([]);
-  
-  // Editor State
-  const [currentConfig, setCurrentConfig] = useState<CardConfig | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+    // --- STATE ---
+    const [imageUploaded, setImageUploaded] = useState(false);
+    const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+    const [buttons, setButtons] = useState<ButtonConfig[]>(Array.from({length: 6}, () => ({ active: false, title: '', social: null, url: '' })));
+    const [customTexts, setCustomTexts] = useState<CustomText[]>([]);
+    
+    // Layout Config
+    const [layout, setLayout] = useState('3x2');
+    const [alignment, setAlignment] = useState('center');
+    const [maxButtons, setMaxButtons] = useState(3);
+    const [slotRadius, setSlotRadius] = useState('0px');
+    const [defaultStyle, setDefaultStyle] = useState(DEFAULT_BUTTON_STYLE);
 
-  // Initialize Mock Data
-  useEffect(() => {
-      const mocks = generateMockCards();
-      setCards(mocks);
-      // If no cards (in a real scenario, or if mocks disabled), go to editor
-      if (mocks.length === 0) handleCreateNew();
-  }, []);
+    // UI State
+    const [activePanel, setActivePanel] = useState<'none' | 'text' | 'config' | 'button' | 'download'>('none');
+    const [mobileTab, setMobileTab] = useState<'text' | 'layout'>('text');
+    const [editingButtonIndex, setEditingButtonIndex] = useState<number | null>(null);
+    const [editingTextId, setEditingTextId] = useState<string | null>(null);
+    const [toast, setToast] = useState<{msg: string, type: 'success'|'error'|'warning'|'info'} | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingMsg, setLoadingMsg] = useState('');
+    
+    // Refs
+    const cardRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  const isTrial = userProfile?.plan === 'Trial';
-  const limitReached = isTrial && cards.length >= 1;
-
-  const handleCreateNew = () => {
-      if (isTrial && cards.length >= 1) {
-          alert("Limite de 1 cartão atingido no plano Trial. Faça upgrade para criar mais.");
-          return;
-      }
-
-      const newCard: CardConfig = {
-          id: `card-${Date.now()}`,
-          createdAt: new Date().toISOString(),
-          cardName: 'Meu Novo Cartão',
-          ...DEFAULT_CONFIG,
-          // Deep copy buttons to avoid reference issues
-          buttons: JSON.parse(JSON.stringify(DEFAULT_CONFIG.buttons))
-      };
-      setCurrentConfig(newCard);
-      setViewMode('editor');
-  };
-
-  const handleEditCard = (card: CardConfig) => {
-      if (isTrial && cards.length > 1) {
-          alert("Sua conta possui mais cartões do que o permitido no plano Trial. Faça o upgrade para voltar a editar.");
-          return;
-      }
-
-      setCurrentConfig(card);
-      setViewMode('editor');
-  };
-
-  const handleSaveFromEditor = (updatedConfig: CardConfig) => {
-      setCards(prev => {
-          const exists = prev.find(c => c.id === updatedConfig.id);
-          if (exists) {
-              return prev.map(c => c.id === updatedConfig.id ? updatedConfig : c);
-          } else {
-              return [updatedConfig, ...prev];
-          }
-      });
-      // Optionally stay in editor or go back. "Save & Download" usually implies staying implies downloading logic which is handled inside initApp, 
-      // but we update the state here to persist.
-  };
-
-  const handleDeleteCard = () => {
-      if(!currentConfig) return;
-      if(confirm('Tem certeza que deseja excluir este cartão?')) {
-          setCards(prev => prev.filter(c => c.id !== currentConfig.id));
-          setViewMode('gallery');
-          setCurrentConfig(null);
-      }
-  };
-
-  // --- EDITOR INITIALIZER ---
-  useEffect(() => {
-    if (viewMode !== 'editor' || !currentConfig) return;
-
-    // --- VANILLA JS LOGIC START (Scoped) ---
-    const initApp = () => {
-      const cardData = currentConfig; // Local reference
-
-      const app: any = {
-        buttons: JSON.parse(JSON.stringify(cardData.buttons)), // Deep copy
-        layout: cardData.layout, 
-        alignment: cardData.alignment, 
-        maxButtons: cardData.maxButtons, 
-        slotRadius: cardData.slotRadius,
-        imageUploaded: !!cardData.backgroundImage, 
-        editingTextId: null,
-        useBrandColors: cardData.useBrandColors,
-        defaultButtonStyle: { ...cardData.defaultButtonStyle },
-        backgroundImage: cardData.backgroundImage
-      };
-
-      let editingIndex: number | null = null;
-      let currentSocialForInline: string | null = null;
-      let activeTextEl: HTMLElement | null = null;
-
-      const redes = [
-        {key: 'whatsapp', name: 'WhatsApp', urlPrefix: 'https://wa.me/', icon: 'logo-whatsapp', color: '#25D366'},
-        {key: 'telegram', name: 'Telegram', urlPrefix: 'https://t.me/', icon: 'send-outline', color: '#0088cc'},
-        {key: 'telefone', name: 'Telefone', urlPrefix: 'tel:', icon: 'call-outline', color: '#3b82f6'},
-        {key: 'email', name: 'Email', urlPrefix: 'mailto:', icon: 'mail-outline', color: '#ea4335'},
-        {key: 'agendamento', name: 'Agendamento', urlPrefix: 'https://calendly.com/', icon: 'calendar-outline', color: '#006BFF'},
-        {key: 'pagamento', name: 'Pagamento', urlPrefix: 'https://pay.me/', icon: 'cash-outline', color: '#10b981'},
-        {key: 'linkedin', name: 'LinkedIn', urlPrefix: 'https://linkedin.com/in/', icon: 'logo-linkedin', color: '#0A66C2'},
-        {key: 'site', name: 'Website', urlPrefix: 'https://', icon: 'globe-outline', color: '#64748b'},
-        {key: 'behance', name: 'Behance', urlPrefix: 'https://www.behance.net/', icon: 'logo-behance', color: '#1769ff'},
-        {key: 'instagram', name: 'Instagram', urlPrefix: 'https://instagram.com/', icon: 'logo-instagram', color: '#E1306C'},
-        {key: 'facebook', name: 'Facebook', urlPrefix: 'https://facebook.com/', icon: 'logo-facebook', color: '#1877F2'},
-        {key: 'youtube', name: 'YouTube', urlPrefix: 'https://youtube.com/', icon: 'logo-youtube', color: '#FF0000'},
-        {key: 'tiktok', name: 'TikTok', urlPrefix: 'https://tiktok.com/@', icon: 'logo-tiktok', color: '#000000'},
-        {key: 'twitter', name: 'Twitter', urlPrefix: 'https://twitter.com/', icon: 'logo-twitter', color: '#1DA1F2'},
-        {key: 'localizacao', name: 'Localização', urlPrefix: 'https://maps.google.com/?q=', icon: 'location-outline', color: '#ea4335'}
-      ];
-
-      // === DOM REFERENCES ===
-      const getEl = (id: string) => document.getElementById(id);
-      
-      const dom: any = {
-          buttonsGrid: getEl('buttonsGrid'),
-          card: getEl('card'),
-          cardInner: document.querySelector('.card-inner'),
-          buttonOverlay: getEl('buttonOverlay'),
-          socialGrid: getEl('socialGrid'),
-          formInline: getEl('formInline'),
-          downloadOverlay: getEl('downloadOverlay'),
-          cardBg: getEl('cardBg'),
-          configPanel: getEl('configPanel'),
-          
-          // Controls
-          photoBtn: getEl('photoBtn'),
-          downloadBtn: getEl('downloadBtn'),
-          toggleConfigPanel: getEl('toggleConfigPanel'),
-          closeConfigPanelBtn: getEl('closeConfigPanel'),
-          toastMessage: getEl('toastMessage'),
-          
-          // Tabs
-          tabTextBtn: getEl('tabTextBtn'),
-          tabLayoutBtn: getEl('tabLayoutBtn'),
-          panelText: getEl('panelText'),
-          panelLayout: getEl('panelLayout'),
-
-          // Layout Inputs
-          layoutSelect: getEl('layoutSelect'),
-          alignSelect: getEl('alignSelect'),
-          shapeSelect: getEl('shapeSelect'),
-          maxButtonsInput: getEl('maxButtonsInput'),
-          
-          // Button Style Inputs
-          btnBorderColor: getEl('btnBorderColor'),
-          btnBgColor: getEl('btnBgColor'),
-          btnIconColor: getEl('btnIconColor'),
-          btnLabelColor: getEl('btnLabelColor'),
-          btnFontFamily: getEl('btnFontFamily'),
-          btnFontSize: getEl('btnFontSize'),
-          useBrandColorCheckbox: getEl('useBrandColorCheckbox'),
-
-          // Download
-          filenameInput: getEl('filenameInput'),
-          executeDownloadBtn: getEl('executeDownloadBtn'),
-          closeDownload: getEl('closeDownload'),
-          
-          // Upload
-          uploadModal: getEl('uploadModal'),
-          uploadZone: getEl('uploadZone'),
-          uploadInput: getEl('uploadInput'),
-
-          // Custom Text
-          customTextInput: getEl('customTextInput'),
-          customTextFont: getEl('customTextFont'),
-          customTextSizeNum: getEl('customTextSizeNum'),
-          customTextColor: getEl('customTextColor'),
-          addCustomTextBtn: getEl('addCustomTextBtn'),
-          cancelCustomTextBtn: getEl('cancelCustomTextBtn'),
-          
-          // Panel close buttons
-          closeButtonOverlay: getEl('closeButtonOverlay')
-      };
-
-      // === PRE-FILL UI WITH DATA ===
-      if (app.backgroundImage && dom.cardBg) {
-          dom.cardBg.style.backgroundImage = `url(${app.backgroundImage})`;
-          dom.cardBg.style.backgroundSize = 'cover';
-          dom.cardBg.style.backgroundPosition = 'center';
-      }
-      
-      // Update Inputs
-      if(dom.filenameInput) dom.filenameInput.value = cardData.cardName;
-      if(dom.layoutSelect) dom.layoutSelect.value = app.layout;
-      if(dom.alignSelect) dom.alignSelect.value = app.alignment;
-      if(dom.shapeSelect) dom.shapeSelect.value = app.slotRadius;
-      if(dom.maxButtonsInput) dom.maxButtonsInput.value = app.maxButtons;
-      
-      if(dom.btnBorderColor) dom.btnBorderColor.value = app.defaultButtonStyle.border;
-      if(dom.btnBgColor) dom.btnBgColor.value = app.defaultButtonStyle.bg;
-      if(dom.btnIconColor) dom.btnIconColor.value = app.defaultButtonStyle.icon;
-      if(dom.btnLabelColor) dom.btnLabelColor.value = app.defaultButtonStyle.label;
-      if(dom.btnFontFamily) dom.btnFontFamily.value = app.defaultButtonStyle.fontFamily;
-      if(dom.btnFontSize) dom.btnFontSize.value = app.defaultButtonStyle.fontSize;
-      if(dom.useBrandColorCheckbox) dom.useBrandColorCheckbox.checked = app.useBrandColors;
-
-      // === RESTORE CUSTOM TEXTS ===
-      // Clear existing first
-      if(dom.cardInner) {
-          const existingTexts = dom.cardInner.querySelectorAll('.custom-text-element');
-          existingTexts.forEach((el: any) => el.remove());
-      }
-      // Add from config (if any - mocked ones don't have text, but logic handles it)
-      // Note: Implementation of loading custom text is simplified here 
-      // Assuming customTexts array in config can be iterated if needed.
-
-      // === HELPER FUNCTIONS ===
-      function showToast(message: string, type = 'info', duration = 3000) {
-          if (!dom.toastMessage) return;
-          dom.toastMessage.textContent = message;
-          dom.toastMessage.className = 'toast';
-          dom.toastMessage.classList.add('show', type);
-          setTimeout(() => {
-              dom.toastMessage.classList.remove('show');
-          }, duration);
-      }
-
-      function closeAllSidePanels(except: any = null) {
-          const sidePanels = [dom.configPanel, dom.downloadOverlay, dom.buttonOverlay];
-          sidePanels.forEach(panel => {
-              if (!panel) return;
-              if (panel === except) return;
-              panel.classList.remove('show');
-          });
-          hideInlineForm();
-      }
-
-      // === TAB LOGIC ===
-      function switchTab(tab: 'text' | 'layout') {
-          if (!dom.panelText || !dom.panelLayout || !dom.tabTextBtn || !dom.tabLayoutBtn) return;
-          if(tab === 'text') {
-              dom.panelText.style.display = 'block';
-              dom.panelLayout.style.display = 'none';
-              dom.tabTextBtn.classList.add('active-tab');
-              dom.tabLayoutBtn.classList.remove('active-tab');
-          } else {
-              dom.panelText.style.display = 'none';
-              dom.panelLayout.style.display = 'block';
-              dom.tabTextBtn.classList.remove('active-tab');
-              dom.tabLayoutBtn.classList.add('active-tab');
-          }
-      }
-
-      // === GRID BUILDER ===
-      function buildSocialGrid(){
-        if (!dom.socialGrid) {
-            setTimeout(() => {
-                dom.socialGrid = getEl('socialGrid');
-                if(dom.socialGrid) buildSocialGrid();
-            }, 500);
-            return;
+    // --- EFFECTS ---
+    useEffect(() => {
+        // Initial setup or responsive check could go here
+        if (window.innerWidth > 768 && !imageUploaded) {
+            // Desktop initial state handled by conditional rendering
         }
-        dom.socialGrid.innerHTML = '';
-        redes.forEach((rede, index) => {
-          const opt = document.createElement('div');
-          opt.className = 'social-option';
-          opt.dataset.rede = rede.key;
-          opt.dataset.index = index.toString();
-          opt.innerHTML = `<div class="icon" style="color:${rede.color}"><ion-icon name="${rede.icon}"></ion-icon></div><span class="social-name">${rede.name}</span>`;
-          opt.addEventListener('click', ()=> openInlineFormForSocial(rede, opt));
-          dom.socialGrid.appendChild(opt);
-        });
-      }
+    }, [imageUploaded]);
 
-      function updatePreview(){
-        if (!dom.buttonsGrid) return;
-        dom.buttonsGrid.className = ''; 
-        if(app.layout === 'list') {
-            dom.buttonsGrid.style.gridTemplateColumns = '1fr';
-            dom.buttonsGrid.style.gap = '12px';
-        } else {
-            dom.buttonsGrid.style.gridTemplateColumns = 'repeat(3, 1fr)';
-            dom.buttonsGrid.style.gap = '10px';
+    useEffect(() => {
+        if (toast) {
+            const timer = setTimeout(() => setToast(null), 3000);
+            return () => clearTimeout(timer);
         }
+    }, [toast]);
 
-        dom.buttonsGrid.innerHTML = '';
+    // --- HANDLERS ---
 
-        for (let idx = 0; idx < app.maxButtons; idx++) {
-            const b = app.buttons[idx] || { active: false };
-            const slot = document.createElement('div');
-            slot.className = 'btn-slot' + (b.active? '':' empty');
-            slot.dataset.idx = idx.toString();
-            
-            const globalStyle = app.defaultButtonStyle;
-            const localStyle = b.style || {};
-            const styleBorder = localStyle.border || globalStyle.border;
-            const styleBg = localStyle.bg || globalStyle.bg;
-            const styleLabel = localStyle.label || globalStyle.label;
-            const styleFontFamily = localStyle.fontFamily || globalStyle.fontFamily;
-            const styleFontSize = localStyle.fontSize || globalStyle.fontSize;
-            
-            slot.style.borderRadius = app.slotRadius;
-            slot.style.borderColor = styleBorder;
-            slot.style.backgroundColor = styleBg;
-            slot.style.justifyContent = app.alignment === 'left' ? 'flex-start' : (app.alignment === 'right' ? 'flex-end' : 'center');
-            if(app.alignment !== 'center') slot.style.paddingLeft = '12px';
-            if(app.alignment !== 'center') slot.style.paddingRight = '12px';
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
 
-            if(b.active){
-              const redeInfo = redes.find(r => r.key === b.social);
-              const iconName = redeInfo ? redeInfo.icon : '';
-              let effectiveIconColor = globalStyle.icon;
-              
-              if (localStyle.useBrandColor && redeInfo && redeInfo.color) {
-                  effectiveIconColor = redeInfo.color;
-              } else if (localStyle.icon) {
-                  effectiveIconColor = localStyle.icon;
-              } else if (app.useBrandColors && redeInfo && redeInfo.color) {
-                  effectiveIconColor = redeInfo.color;
-              }
-
-              const iconStyle = `color: ${effectiveIconColor}; font-size: 20px; margin-bottom: 4px;`;
-              const labelStyle = `color: ${styleLabel}; font-family: ${styleFontFamily}; font-size: ${styleFontSize};`;
-
-              slot.innerHTML = `
-                <div class="btn-icon" style="${iconStyle}"><ion-icon name="${iconName}"></ion-icon></div>
-                <div class="btn-label" style="${labelStyle}">${escapeHtml(b.title)}</div>
-                <div class="edit-overlay" data-html2canvas-ignore="true"><ion-icon name="pencil-outline"></ion-icon></div>
-              `;
-            } else {
-              slot.innerHTML = '<div class="btn-icon"><ion-icon name="add-circle-outline"></ion-icon></div><div class="btn-label" style="font-size:10px">Adicionar</div><div class="edit-overlay" data-html2canvas-ignore="true"><ion-icon name="pencil-outline"></ion-icon></div>';
-              slot.style.borderStyle = 'dashed';
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            setBackgroundImage(ev.target?.result as string);
+            setImageUploaded(true);
+            if (window.innerWidth > 768) {
+                setActivePanel('text'); // Show text panel by default on desktop after upload
             }
-            slot.addEventListener('click', ()=> openButtonOverlay(idx));
-            dom.buttonsGrid.appendChild(slot);
-        }
-      }
-
-      function openButtonOverlay(idx: number){
-        closeAllSidePanels(dom.buttonOverlay);
-        editingIndex = idx;
-        if (dom.buttonOverlay) dom.buttonOverlay.classList.add('show');
-        if(!app.buttons[idx]) app.buttons[idx] = { active:false };
-
-        const currentButton = app.buttons[idx];
-        if (currentButton && currentButton.active && currentButton.social) {
-          const redeInfo = redes.find(r => r.key === currentButton.social);
-          if (redeInfo) {
-            const socialOptions = document.querySelectorAll('.social-option');
-            socialOptions.forEach((opt: any) => {
-                if(opt.dataset.rede === currentButton.social) {
-                    setTimeout(() => openInlineFormForSocial(redeInfo, opt as HTMLElement), 100);
-                }
-            });
-          }
-        } else {
-          hideInlineForm();
-        }
-      }
-
-      function hideInlineForm(){
-        if (!dom.formInline) return;
-        dom.formInline.classList.remove('show');
-        dom.formInline.innerHTML = '';
-        currentSocialForInline = null;
-        document.querySelectorAll('.social-option').forEach(opt => opt.classList.remove('active-social-option'));
-      }
-
-      function openInlineFormForSocial(rede: any, clickedOptionElement: HTMLElement){
-        if (!dom.socialGrid || !dom.formInline) return;
-        document.querySelectorAll('.social-option').forEach(opt => opt.classList.remove('active-social-option'));
-        clickedOptionElement.classList.add('active-social-option');
-        currentSocialForInline = rede.key;
-        
-        const socialGrid = dom.socialGrid;
-        const options = Array.from(socialGrid.querySelectorAll('.social-option')) as HTMLElement[];
-        const clickedIndex = options.indexOf(clickedOptionElement);
-        const columns = 4;
-        const currentRow = Math.floor(clickedIndex / columns);
-        let insertAfterIndex = ((currentRow + 1) * columns) - 1;
-        if (insertAfterIndex >= options.length) insertAfterIndex = options.length - 1;
-
-        const referenceNode = options[insertAfterIndex];
-        if (referenceNode && referenceNode.nextSibling) socialGrid.insertBefore(dom.formInline, referenceNode.nextSibling);
-        else socialGrid.appendChild(dom.formInline);
-
-        const currentButtonData = app.buttons[editingIndex || 0];
-        const title = (currentButtonData && currentButtonData.title) ? currentButtonData.title : rede.name;
-        const url = (currentButtonData && currentButtonData.url) ? currentButtonData.url : '';
-        const prefillUrl = rede.urlPrefix || '';
-        const styles = currentButtonData.style || {};
-        const def = app.defaultButtonStyle;
-
-        const html = `
-            <div class="form-content-inner">
-                <div class="form-group-custom mb-3">
-                    <label class="text-xs font-bold text-slate-600 block mb-1">Título do Botão</label>
-                    <input id="btnTitle" value="${title}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
-                </div>
-                <div class="form-group-custom mb-3">
-                    <label class="text-xs font-bold text-slate-600 block mb-1">Link de Destino</label>
-                    <input id="btnURL" value="${url || prefillUrl}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
-                </div>
-                <div class="flex flex-col gap-2">
-                    <button id="saveBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
-                        <ion-icon name="checkmark-circle-outline" style="font-size:16px"></ion-icon> Salvar Botão
-                    </button>
-                    <div class="flex gap-2">
-                        <button id="removeBtn" class="flex-1 bg-white hover:bg-red-50 text-red-600 border border-red-200 hover:border-red-300 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2">
-                            <ion-icon name="trash-outline" style="font-size:16px"></ion-icon> Remover
-                        </button>
-                        <button id="cancelBtn" class="flex-1 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2">
-                            Cancelar
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        dom.formInline.innerHTML = html;
-        dom.formInline.classList.add('show');
-        setTimeout(() => { dom.formInline.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 150);
-        
-        getEl('saveBtn')?.addEventListener('click', saveButtonHandler);
-        getEl('removeBtn')?.addEventListener('click', removeButtonHandler);
-        getEl('cancelBtn')?.addEventListener('click', (e) => { e.preventDefault(); hideInlineForm(); });
-      }
-
-      function saveButtonHandler(ev: any){
-        ev.preventDefault();
-        if(editingIndex === null || !currentSocialForInline) return;
-        const titleInput = getEl('btnTitle') as HTMLInputElement;
-        const urlInput = getEl('btnURL') as HTMLInputElement;
-        const title = titleInput?.value;
-        const url = urlInput?.value;
-        if(!url) { showToast('URL obrigatória', 'error'); return; }
-
-        app.buttons[editingIndex] = {
-            active: true, 
-            title, 
-            social: currentSocialForInline, 
-            url,
-            style: {} // simplified for brevity in this update
+            showToast('Imagem carregada com sucesso!', 'success');
         };
-        updatePreview();
-        closeAllSidePanels(); 
-        showToast('Botão salvo!', 'success');
-      }
-
-      function removeButtonHandler(ev: any){
-        ev.preventDefault();
-        if(editingIndex === null) return;
-        app.buttons[editingIndex] = { active:false, title:'', social:null, url:'' };
-        updatePreview();
-        closeAllSidePanels();
-        showToast('Botão removido.', 'info');
-      }
-
-      function escapeHtml(text: string) {
-        if (!text) return '';
-        return text.replace(/[&<>"']/g, function(m) { 
-            const map: any = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-            return map[m]; 
-        });
-      }
-
-      // === SAVE & DOWNLOAD ===
-      async function executeDownload() {
-          const filename = (getEl('filenameInput') as HTMLInputElement)?.value || 'meu-cartao';
-          
-          // 1. SAVE STATE to React
-          const newConfig: CardConfig = {
-              ...cardData,
-              cardName: filename,
-              layout: app.layout,
-              alignment: app.alignment,
-              maxButtons: app.maxButtons,
-              slotRadius: app.slotRadius,
-              useBrandColors: app.useBrandColors,
-              defaultButtonStyle: app.defaultButtonStyle,
-              backgroundImage: app.backgroundImage,
-              buttons: app.buttons,
-              customTexts: [] // Simplified text saving
-          };
-          
-          handleSaveFromEditor(newConfig);
-
-          // 2. GENERATE PDF
-          if (!app.imageUploaded) { showToast('Carregue uma imagem primeiro', 'error'); return; }
-          if (dom.downloadOverlay) dom.downloadOverlay.classList.remove('show');
-          resetTextSelection();
-
-          if (!dom.card) return;
-          const canvas = await html2canvas(dom.card, { scale: 2, useCORS: true, allowTaint: true });
-          const imgData = canvas.toDataURL('image/png');
-
-          const pdf = new jsPDF({ unit: 'pt', format: [canvas.width * 0.75, canvas.height * 0.75] });
-          pdf.addImage(imgData, 'PNG', 0, 0, canvas.width * 0.75, canvas.height * 0.75);
-          pdf.save(filename + '.pdf');
-          
-          showToast('Salvo e Baixado!', 'success');
-      }
-
-      function handleImageUpload(file: File) {
-          const reader = new FileReader();
-          reader.onload = function(e) {
-              if(dom.cardBg && e.target?.result) {
-                  const result = e.target.result as string;
-                  dom.cardBg.style.backgroundImage = 'url(' + result + ')';
-                  dom.cardBg.style.backgroundSize = 'cover';
-                  dom.cardBg.style.backgroundPosition = 'center';
-                  app.backgroundImage = result;
-                  app.imageUploaded = true;
-              }
-              if (dom.uploadModal) dom.uploadModal.classList.add('hidden');
-              [dom.photoBtn, dom.downloadBtn, dom.toggleConfigPanel].forEach(el => el?.classList.remove('disabled'));
-              if(window.innerWidth > 768 && dom.configPanel) dom.configPanel.classList.add('show');
-              showToast('Imagem carregada!', 'success');
-          };
-          reader.readAsDataURL(file);
-      }
-
-      // === TEXT UTILS ===
-      const updateTextPreview = () => {
-          if (!dom.customTextInput) return;
-          const text = (dom.customTextInput as HTMLInputElement).value;
-          const preview = getEl('textPreview');
-          if(preview) preview.textContent = text || 'Prévia';
-      }
-      
-      const resetTextForm = () => {
-         if (!dom.customTextInput) return;
-         (dom.customTextInput as HTMLInputElement).value = '';
-         if(dom.addCustomTextBtn) dom.addCustomTextBtn.textContent = 'Adicionar Texto ao Cartão';
-         if(dom.cancelCustomTextBtn) dom.cancelCustomTextBtn.style.display = 'none';
-         activeTextEl = null;
-         updateTextPreview();
-         resetTextSelection();
-      }
-
-      const resetTextSelection = () => {
-          document.querySelectorAll('.custom-text-element').forEach(el => el.classList.remove('selected'));
-      }
-
-      const handleDeleteText = (el: HTMLElement) => { el.remove(); resetTextForm(); showToast('Texto removido', 'info'); }
-
-      const handleEditText = (el: HTMLElement) => {
-          const span = el.querySelector('.content') as HTMLElement;
-          if(!span || !dom.customTextInput) return;
-          switchTab('text');
-          (dom.customTextInput as HTMLInputElement).value = span.textContent || '';
-          activeTextEl = el;
-          if(dom.addCustomTextBtn) dom.addCustomTextBtn.textContent = 'Atualizar Texto';
-          if(dom.cancelCustomTextBtn) dom.cancelCustomTextBtn.style.display = 'inline-block';
-          if(dom.configPanel) dom.configPanel.classList.add('show');
-          updateTextPreview();
-      }
-
-      const handleTextClick = (e: MouseEvent, el: HTMLElement) => {
-          e.stopPropagation();
-          const isSelected = el.classList.contains('selected');
-          resetTextSelection();
-          if(!isSelected) el.classList.add('selected');
-      }
-
-      // --- INITIALIZATION LISTENERS ---
-      buildSocialGrid();
-      updatePreview();
-
-      // Ensure buttons are enabled if reloading existing data
-      if (app.imageUploaded) {
-          if (dom.uploadModal) dom.uploadModal.classList.add('hidden');
-          [dom.photoBtn, dom.downloadBtn, dom.toggleConfigPanel].forEach(el => el?.classList.remove('disabled'));
-      }
-
-      dom.photoBtn?.addEventListener('click', () => !dom.photoBtn.classList.contains('disabled') && dom.uploadInput.click());
-      dom.uploadInput?.addEventListener('change', (e: any) => e.target.files[0] && handleImageUpload(e.target.files[0]));
-      dom.uploadZone?.addEventListener('click', () => dom.uploadInput.click());
-      
-      dom.toggleConfigPanel?.addEventListener('click', () => dom.configPanel.classList.add('show'));
-      dom.closeConfigPanelBtn?.addEventListener('click', () => dom.configPanel.classList.remove('show'));
-      
-      dom.downloadBtn?.addEventListener('click', () => dom.downloadOverlay.classList.add('show'));
-      dom.closeDownload?.addEventListener('click', () => dom.downloadOverlay.classList.remove('show'));
-      dom.executeDownloadBtn?.addEventListener('click', executeDownload);
-      dom.closeButtonOverlay?.addEventListener('click', () => closeAllSidePanels());
-
-      dom.tabTextBtn?.addEventListener('click', () => switchTab('text'));
-      dom.tabLayoutBtn?.addEventListener('click', () => switchTab('layout'));
-
-      dom.layoutSelect?.addEventListener('change', (e: any) => { app.layout = e.target.value; updatePreview(); });
-      dom.alignSelect?.addEventListener('change', (e: any) => { app.alignment = e.target.value; updatePreview(); });
-      dom.shapeSelect?.addEventListener('change', (e: any) => { app.slotRadius = e.target.value; updatePreview(); });
-      dom.maxButtonsInput?.addEventListener('input', (e: any) => { app.maxButtons = parseInt(e.target.value) || 6; updatePreview(); });
-
-      dom.btnBorderColor?.addEventListener('input', (e: any) => { app.defaultButtonStyle.border = e.target.value; updatePreview(); });
-      dom.btnBgColor?.addEventListener('input', (e: any) => { app.defaultButtonStyle.bg = e.target.value; updatePreview(); });
-      dom.btnIconColor?.addEventListener('input', (e: any) => { app.defaultButtonStyle.icon = e.target.value; updatePreview(); });
-      dom.btnLabelColor?.addEventListener('input', (e: any) => { app.defaultButtonStyle.label = e.target.value; updatePreview(); });
-      dom.btnFontFamily?.addEventListener('change', (e: any) => { app.defaultButtonStyle.fontFamily = e.target.value; updatePreview(); });
-      dom.btnFontSize?.addEventListener('change', (e: any) => { app.defaultButtonStyle.fontSize = e.target.value; updatePreview(); });
-      
-      dom.useBrandColorCheckbox?.addEventListener('change', (e: any) => { 
-          app.useBrandColors = e.target.checked; 
-          if(dom.btnIconColor) dom.btnIconColor.disabled = app.useBrandColors;
-          if(dom.btnIconColor) dom.btnIconColor.style.opacity = app.useBrandColors ? '0.5' : '1';
-          updatePreview(); 
-      });
-
-      dom.customTextInput?.addEventListener('input', updateTextPreview);
-      dom.cancelCustomTextBtn?.addEventListener('click', resetTextForm);
-
-      dom.addCustomTextBtn?.addEventListener('click', () => {
-          if (!dom.customTextInput) return;
-          const text = (dom.customTextInput as HTMLInputElement).value;
-          if(!text) { showToast('Digite um texto', 'error'); return; }
-          const font = dom.customTextFont ? (dom.customTextFont as HTMLSelectElement).value : 'Arial';
-          const size = dom.customTextSizeNum ? (dom.customTextSizeNum as HTMLInputElement).value : '24';
-          const color = dom.customTextColor ? (dom.customTextColor as HTMLInputElement).value : '#000000';
-
-          if (activeTextEl) {
-              const span = activeTextEl.querySelector('.content') as HTMLElement;
-              if(span) span.textContent = text;
-              activeTextEl.style.fontFamily = font;
-              activeTextEl.style.fontSize = size + 'px';
-              activeTextEl.style.color = color;
-              showToast('Texto atualizado!', 'success');
-              resetTextForm();
-          } else {
-              const el = document.createElement('div');
-              el.className = 'custom-text-element';
-              el.style.left = '50%'; el.style.top = '50%';
-              el.style.fontFamily = font;
-              el.style.fontSize = size + 'px';
-              el.style.color = color;
-              el.innerHTML = `<span class="content">${escapeHtml(text)}</span><div class="text-controls" data-html2canvas-ignore="true"><div class="control-btn edit-btn"><ion-icon name="pencil"></ion-icon></div><div class="control-btn del-btn"><ion-icon name="trash"></ion-icon></div></div>`;
-              let isDragging = false;
-              el.addEventListener('mousedown', (e) => { 
-                  if((e.target as HTMLElement).closest('.text-controls')) return;
-                  isDragging = true; 
-                  handleTextClick(e, el);
-              });
-              el.querySelector('.edit-btn')?.addEventListener('click', (e) => { e.stopPropagation(); handleEditText(el); });
-              el.querySelector('.del-btn')?.addEventListener('click', (e) => { e.stopPropagation(); handleDeleteText(el); });
-              const moveHandler = (e: MouseEvent) => {
-                  if(!isDragging) return;
-                  const rect = dom.card.getBoundingClientRect();
-                  el.style.left = (e.clientX - rect.left) + 'px';
-                  el.style.top = (e.clientY - rect.top) + 'px';
-              };
-              const upHandler = () => { isDragging = false; };
-              window.addEventListener('mouseup', upHandler);
-              window.addEventListener('mousemove', moveHandler);
-              if (dom.cardInner) dom.cardInner.appendChild(el);
-              showToast('Texto adicionado!', 'success');
-              resetTextForm();
-          }
-      });
-      
-      document.addEventListener('click', (e) => {
-          if(!(e.target as HTMLElement).closest('.custom-text-element') && !(e.target as HTMLElement).closest('#configPanel')) {
-              resetTextSelection();
-          }
-      });
+        reader.readAsDataURL(file);
     };
 
-    const timer = setTimeout(initApp, 100); 
-    return () => clearTimeout(timer);
-  }, [viewMode, currentConfig]);
+    const showToast = (msg: string, type: 'success'|'error'|'warning'|'info' = 'info') => {
+        setToast({ msg, type });
+    };
 
-  // --- RENDER ---
-  if (viewMode === 'gallery') {
-      return (
-          <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
-              <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                  <div>
-                      <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Meus Cartões Digitais</h1>
-                      <p className="text-slate-500 dark:text-slate-400 mt-1">Gerencie seus cartões de visita interativos.</p>
-                      {isTrial && (
-                            <p className="text-xs text-orange-600 mt-2 font-bold flex items-center gap-1">
-                                <Lock size={12} /> Plano Trial: Limite de 1 cartão. {cards.length}/1 usado(s).
-                            </p>
-                      )}
-                  </div>
-                  <button 
-                      onClick={handleCreateNew}
-                      disabled={limitReached}
-                      className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg
-                        ${limitReached 
-                            ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed' 
-                            : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-indigo-500/20'
-                        }`}
-                  >
-                      {limitReached ? <Lock size={20} /> : <Plus size={20} />}
-                      Criar Novo Cartão
-                  </button>
-              </div>
+    const toggleButtonActive = (idx: number) => {
+        if (idx >= maxButtons) {
+            showToast(`Aumente o número de botões para usar o slot ${idx + 1}`, 'warning');
+            return;
+        }
+        setEditingButtonIndex(idx);
+        setActivePanel('button');
+    };
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                  <button 
-                      onClick={handleCreateNew}
-                      disabled={limitReached}
-                      className={`group flex flex-col items-center justify-center gap-4 aspect-[9/16] rounded-xl border-2 border-dashed transition-all
-                        ${limitReached 
-                            ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-not-allowed opacity-60' 
-                            : 'border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 bg-slate-50 dark:bg-slate-800/50 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 cursor-pointer'
-                        }`}
-                  >
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${limitReached ? 'bg-slate-200 dark:bg-slate-700 text-slate-400' : 'bg-slate-200 dark:bg-slate-700 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 text-slate-400 hover:text-indigo-600'}`}>
-                          {limitReached ? <Lock size={24} /> : <Plus size={24} />}
-                      </div>
-                      <span className={`font-bold text-sm ${limitReached ? 'text-slate-400' : 'text-slate-400 group-hover:text-indigo-600'}`}>
-                          {limitReached ? 'Limite Atingido' : 'Adicionar Novo'}
-                      </span>
-                  </button>
+    const saveButton = (idx: number, data: Partial<ButtonConfig>) => {
+        setButtons(prev => {
+            const newButtons = [...prev];
+            newButtons[idx] = { ...newButtons[idx], ...data, active: true };
+            return newButtons;
+        });
+        setActivePanel(window.innerWidth > 768 ? 'config' : 'none');
+        setEditingButtonIndex(null);
+        showToast('Botão salvo!', 'success');
+    };
 
-                  {cards.map(card => (
-                      <MiniCardPreview 
-                          key={card.id} 
-                          config={card} 
-                          isLocked={isTrial && cards.length > 1}
-                          onClick={() => handleEditCard(card)} 
-                      />
-                  ))}
-              </div>
-          </div>
-      );
-  }
+    const removeButton = (idx: number) => {
+        setButtons(prev => {
+            const newButtons = [...prev];
+            newButtons[idx] = { active: false, title: '', social: null, url: '' };
+            return newButtons;
+        });
+        setActivePanel(window.innerWidth > 768 ? 'config' : 'none');
+        setEditingButtonIndex(null);
+        showToast('Botão removido.', 'info');
+    };
 
-  // --- EDITOR RENDER (Wrapped Vanilla) ---
-  return (
-    <div className="interactive-card-scope w-full relative min-h-screen">
-      <div className="flex items-center justify-between px-6 py-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-          <div className="flex items-center gap-3">
-              <button onClick={() => setViewMode('gallery')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                  <ArrowLeft size={20} className="text-slate-600 dark:text-slate-300" />
-              </button>
-              <div>
-                  <h1 className="text-xl font-bold text-slate-800 dark:text-white">Editor de Cartão</h1>
-                  <p className="text-xs text-slate-500">Editando: {currentConfig?.cardName}</p>
-              </div>
-          </div>
-          <button 
-              onClick={handleDeleteCard}
-              className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium" 
-          >
-              <Trash2 size={18} /> Excluir
-          </button>
-      </div>
+    const addCustomText = (text: string, font: string, size: string, color: string) => {
+        if (!text.trim()) {
+            showToast('Digite um texto', 'warning');
+            return;
+        }
+        const newText: CustomText = {
+            id: `text-${Date.now()}`,
+            text,
+            font,
+            size: size + 'px',
+            color,
+            x: 50,
+            y: 50
+        };
+        setCustomTexts(prev => [...prev, newText]);
+        showToast('Texto adicionado! Arraste para posicionar', 'success');
+    };
 
-      <style>{`
-        /* SCOPED CSS */
-        .interactive-card-scope { --card-w: 400px; --card-h: 711px; --card-bg: #00ABE4; }
-        .interactive-card-scope .stage { display:flex; gap:48px; justify-content:center; width:100%; flex-wrap:wrap; }
+    const updateCustomText = (id: string, data: Partial<CustomText>) => {
+        setCustomTexts(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
+    };
+
+    const removeCustomText = (id: string) => {
+        setCustomTexts(prev => prev.filter(t => t.id !== id));
+        if (editingTextId === id) setEditingTextId(null);
+        showToast('Texto removido', 'info');
+    };
+
+    // --- DRAG AND DROP LOGIC ---
+    const handleDragStart = (e: React.MouseEvent | React.TouchEvent, id: string) => {
+        // Simple implementation - could be improved with a library like dnd-kit but keeping it simple/vanilla-like
+        const el = e.currentTarget as HTMLElement;
+        const rect = cardRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const isTouch = 'touches' in e;
+        const clientX = isTouch ? (e as React.TouchEvent).touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = isTouch ? (e as React.TouchEvent).touches[0].clientY : (e as React.MouseEvent).clientY;
+
+        const startX = clientX;
+        const startY = clientY;
+        const startLeft = parseFloat(el.style.left);
+        const startTop = parseFloat(el.style.top);
+
+        const handleMove = (moveEvent: MouseEvent | TouchEvent) => {
+            moveEvent.preventDefault();
+            const moveClientX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : (moveEvent as MouseEvent).clientX;
+            const moveClientY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : (moveEvent as MouseEvent).clientY;
+
+            const deltaX = moveClientX - startX;
+            const deltaY = moveClientY - startY;
+
+            // Convert delta to percentage relative to card size
+            const deltaXPercent = (deltaX / rect.width) * 100;
+            const deltaYPercent = (deltaY / rect.height) * 100;
+
+            let newLeft = startLeft + deltaXPercent;
+            let newTop = startTop + deltaYPercent;
+
+            // Boundary checks (0-100%)
+            newLeft = Math.max(0, Math.min(100, newLeft));
+            newTop = Math.max(0, Math.min(100, newTop));
+
+            updateCustomText(id, { x: newLeft, y: newTop });
+        };
+
+        const handleUp = () => {
+            document.removeEventListener('mousemove', handleMove);
+            document.removeEventListener('mouseup', handleUp);
+            document.removeEventListener('touchmove', handleMove);
+            document.removeEventListener('touchend', handleUp);
+        };
+
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('mouseup', handleUp);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        document.addEventListener('touchend', handleUp);
+    };
+
+    // --- DOWNLOAD LOGIC ---
+    const handleDownload = async (format: 'pdf' | 'html' | 'qrcode') => {
+        if (!cardRef.current) return;
+        setIsLoading(true);
+        setLoadingMsg('Gerando arquivo...');
+
+        try {
+            // Hide controls for capture
+            const controls = cardRef.current.querySelector('#cardHeaderControls') as HTMLElement;
+            if (controls) controls.style.display = 'none';
+
+            const canvas = await html2canvas(cardRef.current, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: null,
+                allowTaint: true
+            });
+
+            if (controls) controls.style.display = 'flex';
+
+            if (format === 'pdf') {
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'pt',
+                    format: [canvas.width * 0.75, canvas.height * 0.75]
+                });
+                pdf.addImage(imgData, 'PNG', 0, 0, canvas.width * 0.75, canvas.height * 0.75);
+                
+                // Add Links
+                const cardRect = cardRef.current.getBoundingClientRect();
+                const scaleX = (canvas.width * 0.75) / cardRect.width;
+                const scaleY = (canvas.height * 0.75) / cardRect.height;
+
+                buttons.forEach((btn, idx) => {
+                    if (!btn.active || !btn.url) return;
+                    const slotEl = cardRef.current?.querySelector(`.btn-slot[data-idx="${idx}"]`);
+                    if (slotEl) {
+                        const rect = slotEl.getBoundingClientRect();
+                        const x = (rect.left - cardRect.left) * scaleX;
+                        const y = (rect.top - cardRect.top) * scaleY;
+                        const w = rect.width * scaleX;
+                        const h = rect.height * scaleY;
+                        pdf.link(x, y, w, h, { url: btn.url });
+                    }
+                });
+
+                pdf.save('cartao_interativo.pdf');
+            } else if (format === 'qrcode') {
+                 // Generate QR Code for a URL (needs a hosted URL, for now we just generate QR of a placeholder or the first link)
+                 // In a real app, you'd upload the HTML and get a URL. Here we'll just generate a QR code image of the first link or a placeholder.
+                 const url = buttons.find(b => b.active && b.url)?.url || 'https://www.lexonline.com.br';
+                 const qrUrl = await QRCode.toDataURL(url);
+                 const link = document.createElement('a');
+                 link.href = qrUrl;
+                 link.download = 'qrcode.png';
+                 link.click();
+            }
+
+            showToast('Download concluído!', 'success');
+        } catch (error) {
+            console.error(error);
+            showToast('Erro ao gerar arquivo.', 'error');
+        } finally {
+            setIsLoading(false);
+            setActivePanel(window.innerWidth > 768 ? 'config' : 'none');
+        }
+    };
+
+    // --- RENDER HELPERS ---
+    const renderButtons = () => {
+        const slots = [];
+        const isRectangular = slotRadius === '4px' || slotRadius === '16px';
         
-        .interactive-card-scope #card {
-            width: var(--card-w); height: var(--card-h); background: var(--card-bg);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.12); position: relative; overflow: hidden; 
-            display: flex; flex-direction: column; padding: 20px 20px 32px; margin: 0 auto;
+        // Determine grid columns based on layout
+        let gridStyle: React.CSSProperties = {
+            display: 'grid',
+            gap: layout === '3x2' ? '10px' : '24px',
+            width: '100%',
+            alignItems: 'end',
+            justifyItems: alignment === 'left' ? 'start' : (alignment === 'right' ? 'end' : 'center'),
+        };
+
+        if (layout === '3x2') {
+            gridStyle.gridTemplateColumns = isRectangular ? '1fr' : 'repeat(3, 1fr)';
+            gridStyle.gridAutoRows = '72px';
+            gridStyle.marginBottom = '48px';
+        } else {
+            // Vertical layouts
+            gridStyle.display = 'flex';
+            gridStyle.flexDirection = 'column';
+            gridStyle.position = 'absolute';
+            gridStyle.top = '84px';
+            gridStyle.width = '90px';
+            gridStyle.gap = '24px';
+            if (layout === 'vertical-left') gridStyle.left = '4px';
+            if (layout === 'vertical-right') gridStyle.right = '4px';
         }
 
-        .interactive-card-scope #cardHeaderControls {
-            position: absolute; top: 0; left: 0; width: 100%; height: 60px;
-            display: flex; justify-content: space-between; align-items: center; padding: 10px;
-            z-index: 10; background: linear-gradient(to bottom, rgba(0,0,0,0.5), rgba(0,0,0,0));
-        }
-
-        .interactive-card-scope .card-control-icon {
-            display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;
-            border-radius: 50%; background-color: rgba(255,255,255,0.2); cursor: pointer;
-        }
-        .interactive-card-scope .card-control-icon ion-icon { font-size: 24px; color: white; }
-        .interactive-card-scope .card-control-icon.disabled { opacity: 0.5; pointer-events: none; }
-
-        .interactive-card-scope #cardBg { position: absolute; inset: 0; z-index: 0; background-color: var(--card-bg); }
-        .interactive-card-scope .card-inner { position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; pointer-events: none; }
-        .interactive-card-scope .card-inner > * { pointer-events: auto; }
-
-        .interactive-card-scope #buttonsGrid {
-            display: grid; width: 100%; margin-top: auto; margin-bottom: 8px;
-        }
-
-        .interactive-card-scope .btn-slot {
-            width: 100%; height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            cursor: pointer; position: relative; transition: transform 0.2s; border: 2px solid transparent;
-        }
-        .interactive-card-scope .btn-slot:hover { transform: scale(1.03); z-index:5; }
-        
-        /* Side Panels */
-        .interactive-card-scope .side-panel {
-            position: fixed; top: 0; right: 0; width: 100%; max-width: 400px; height: 100vh;
-            background: white; box-shadow: -5px 0 15px rgba(0,0,0,0.1); z-index: 9999; 
-            transform: translateX(100%); transition: transform 0.3s ease; padding: 0;
-            display: flex; flex-direction: column;
-        }
-        .interactive-card-scope .side-panel.show { transform: translateX(0); }
-        
-        .interactive-card-scope #buttonOverlay {
-            display: flex; flex-direction: column;
-        }
-
-        .interactive-card-scope .social-grid { 
-            display: grid; 
-            grid-template-columns: repeat(4, 1fr); 
-            gap: 10px; 
-            margin-top: 20px; 
-            padding: 20px; 
-            overflow-y: auto; 
-            flex: 1;
-            padding-bottom: 120px; /* Extra space for last items to scroll up */
-        }
-
-        .interactive-card-scope .social-option {
-            border: 1px solid #ddd; border-radius: 8px; padding: 10px;
-            display: flex; flex-direction: column; align-items: center; cursor: pointer;
-            transition: all 0.2s;
-        }
-        .interactive-card-scope .social-option:hover { border-color: #4782ec; background: #f0f7ff; }
-        
-        .interactive-card-scope .social-option.active-social-option {
-            border-color: #4f46e5;
-            background-color: #eef2ff;
-            box-shadow: 0 0 0 2px #4f46e5;
-        }
-
-        .interactive-card-scope .social-option ion-icon { font-size: 28px; color: #333; }
-        .interactive-card-scope .social-name { font-size: 10px; margin-top: 5px; text-align: center; }
-
-        .interactive-card-scope #formInline { 
-            grid-column: 1 / -1; /* Make it span full width */
-            background: #f9f9f9; padding: 15px; border-radius: 8px; 
-            margin: 10px 0; /* Add vertical margin */
-            display: none; border: 1px solid #eee; 
-            animation: slideDown 0.3s ease-out;
-        }
-        .interactive-card-scope #formInline.show { display: block; }
-        
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Tabs */
-        .interactive-card-scope .config-tabs { display: flex; border-bottom: 1px solid #eee; }
-        .interactive-card-scope .config-tab-btn { flex: 1; padding: 15px; text-align: center; font-weight: bold; color: #666; cursor: pointer; background: #f9fafb; border-bottom: 2px solid transparent; }
-        .interactive-card-scope .config-tab-btn.active-tab { background: white; color: #4f46e5; border-bottom-color: #4f46e5; }
-        
-        /* Upload Modal */
-        .interactive-card-scope .upload-modal { position: absolute; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; display: flex; align-items: center; justify-content: center; }
-        .interactive-card-scope .upload-modal.hidden { display: none; }
-        .interactive-card-scope .upload-zone { border: 3px dashed rgba(255,255,255,0.5); padding: 40px; color: white; text-align: center; cursor: pointer; border-radius: 12px; }
-
-        /* Custom Text */
-        .interactive-card-scope .custom-text-element { position: absolute; cursor: move; white-space: nowrap; z-index: 5; padding: 4px; border: 1px dashed transparent; user-select: none; }
-        .interactive-card-scope .custom-text-element.selected { border: 1px dashed white; background: rgba(0,0,0,0.2); }
-        .interactive-card-scope .text-controls { position: absolute; top: -35px; left: 50%; transform: translateX(-50%); display: none; gap: 5px; background: white; padding: 4px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .interactive-card-scope .custom-text-element.selected .text-controls { display: flex; }
-        .interactive-card-scope .control-btn { width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .interactive-card-scope .edit-btn { background: #4782ec; color: white; }
-        .interactive-card-scope .del-btn { background: #ef4444; color: white; }
-
-        /* Inputs */
-        .interactive-card-scope input[type="text"], .interactive-card-scope input[type="number"], .interactive-card-scope select {
-            border: 1px solid #d1d5db !important; padding: 8px !important; border-radius: 6px !important;
-            color: #333 !important; background: white !important; font-size: 13px !important;
-        }
-      `}</style>
-
-      <div className="main-content-wrapper p-4">
-        <div className="stage">
+        for (let i = 0; i < maxButtons; i++) {
+            const btn = buttons[i];
+            const rede = btn.social ? REDES.find(r => r.key === btn.social) : null;
             
-            {/* CARD AREA */}
-            <div className="card-wrap relative">
-                <div id="card">
-                    <div id="cardBg"></div>
-                    <div id="uploadModal" className="upload-modal">
-                        <div className="upload-zone" id="uploadZone">
-                            {/* @ts-ignore */}
-                            <ion-icon name="cloud-upload-outline" style={{fontSize: '48px'}}></ion-icon>
-                            <h3 className="text-xl font-bold mt-2">Upload Imagem</h3>
-                            <p className="text-sm opacity-80 mt-1">Clique para selecionar</p>
-                        </div>
-                        <input type="file" id="uploadInput" className="hidden" accept="image/*" />
-                    </div>
-                    <div id="cardHeaderControls">
-                        {/* @ts-ignore */}
-                        <div id="photoBtn" className="card-control-icon disabled"><ion-icon name="image-outline"></ion-icon></div>
-                        {/* @ts-ignore */}
-                        <div id="downloadBtn" className="card-control-icon disabled"><ion-icon name="download-outline"></ion-icon></div>
-                        {/* @ts-ignore */}
-                        <div id="toggleConfigPanel" className="card-control-icon disabled"><ion-icon name="settings-outline"></ion-icon></div>
-                    </div>
-                    <div className="card-inner">
-                        <div id="buttonsGrid"></div>
-                    </div>
+            // Styles
+            const border = btn.customColors?.border || defaultStyle.border;
+            const bg = btn.customColors?.bg || defaultStyle.bg;
+            const iconColor = btn.customColors?.icon || (defaultStyle.useNetworkColor && rede ? NETWORK_DEFAULT_COLORS[rede.key] : defaultStyle.icon);
+            const labelColor = btn.customColors?.label || defaultStyle.label;
+            const font = btn.customFont || defaultStyle.fontFamily;
+            const size = btn.customSize || defaultStyle.fontSize;
+
+            const slotStyle: React.CSSProperties = {
+                borderRadius: slotRadius,
+                border: `2px ${border === 'transparent' ? 'dashed' : 'solid'} ${border === 'transparent' ? '#ffffff' : border}`,
+                backgroundColor: bg,
+                color: labelColor,
+                fontFamily: font,
+                fontSize: size,
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: isRectangular ? 'row' : 'column',
+                alignItems: 'center',
+                justifyContent: isRectangular ? 'flex-start' : 'center',
+                padding: isRectangular ? '12px 16px' : '8px',
+                gap: '6px',
+                width: isRectangular ? '100%' : (slotRadius === '50%' ? '56px' : '100%'),
+                height: isRectangular ? 'auto' : (slotRadius === '50%' ? '56px' : '100%'),
+                minHeight: isRectangular ? '56px' : 'auto',
+                position: 'relative'
+            };
+
+            slots.push(
+                <div 
+                    key={i} 
+                    className={`btn-slot group transition-transform hover:scale-105 ${!btn.active ? 'opacity-70 border-dashed' : ''}`}
+                    style={slotStyle}
+                    onClick={() => toggleButtonActive(i)}
+                    data-idx={i}
+                >
+                    {btn.active ? (
+                        <>
+                            <div className="btn-icon" style={{ color: iconColor, fontSize: '22px', display: 'flex' }}>
+                                <ion-icon name={rede?.icon || 'link-outline'}></ion-icon>
+                            </div>
+                            <div className="btn-label" style={{ 
+                                position: slotRadius === '50%' ? 'absolute' : 'static',
+                                bottom: slotRadius === '50%' ? '-24px' : 'auto',
+                                width: slotRadius === '50%' ? 'max-content' : 'auto',
+                                maxWidth: slotRadius === '50%' ? '100px' : 'auto'
+                            }}>
+                                {btn.title || rede?.name || 'Link'}
+                            </div>
+                            <div className="absolute top-1 right-1 bg-white text-blue-600 rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 shadow-md transition-opacity">
+                                <ion-icon name="pencil-outline" style={{ fontSize: '14px' }}></ion-icon>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="btn-icon"><ion-icon name="add-circle-outline" style={{ fontSize: '24px' }}></ion-icon></div>
+                            <div className="btn-label" style={{ fontSize: '10px' }}>Adicionar</div>
+                        </>
+                    )}
                 </div>
-            </div>
+            );
+        }
 
-            {/* Config Panel */}
-            <div id="configPanel" className="side-panel">
-                <div className="flex justify-between items-center p-4 border-b border-slate-200">
-                    <h3 className="text-lg font-bold text-slate-800">Configurações do Cartão</h3>
-                    <button id="closeConfigPanel" className="text-slate-400 hover:text-slate-600">
-                        {/* @ts-ignore */}
-                        <ion-icon name="close-outline" style={{fontSize: '24px'}}></ion-icon>
-                    </button>
+        return <div id="buttonsGrid" style={gridStyle}>{slots}</div>;
+    };
+
+    return (
+        <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans flex flex-col items-center overflow-hidden">
+            
+            {/* --- STYLES --- */}
+            <style>{`
+                :root { --card-w: 400px; --card-h: 711px; --card-bg: #00ABE4; }
+                .card-shadow { box-shadow: 0 20px 60px rgba(0,0,0,0.12); }
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.1); border-radius: 3px; }
+                @media (max-width: 768px) {
+                    :root { --card-w: calc(100vw - 24px); --card-h: auto; }
+                }
+            `}</style>
+
+            {/* --- TOAST --- */}
+            {toast && (
+                <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 px-5 py-3 rounded-lg shadow-lg text-white text-sm font-medium z-[9999] animate-in fade-in slide-in-from-bottom-2 ${
+                    toast.type === 'success' ? 'bg-green-600' : toast.type === 'error' ? 'bg-red-600' : toast.type === 'warning' ? 'bg-amber-500' : 'bg-slate-800'
+                }`}>
+                    {toast.msg}
                 </div>
+            )}
 
-                {/* TABS HEADER */}
-                <div className="config-tabs">
-                    <div id="tabTextBtn" className="config-tab-btn active-tab flex items-center justify-center gap-2">
-                        <Type size={16} /> Texto
-                    </div>
-                    <div id="tabLayoutBtn" className="config-tab-btn flex items-center justify-center gap-2">
-                        <Layout size={16} /> Layout
-                    </div>
+            {/* --- LOADING OVERLAY --- */}
+            {isLoading && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center text-white">
+                    <div className="w-12 h-12 border-4 border-white/20 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+                    <p className="font-medium">{loadingMsg}</p>
                 </div>
+            )}
 
-                {/* TAB CONTENT: TEXTO */}
-                <div id="panelText" className="p-5 overflow-y-auto flex-1">
-                    <div className="space-y-4">
-                        <div className="bg-blue-50 p-3 rounded text-xs text-blue-700">
-                            Adicione textos livres ao cartão (Ex: Nome, Cargo). Arraste para mover.
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Conteúdo</label>
-                            <input id="customTextInput" type="text" placeholder="Digite aqui..." className="w-full" />
-                        </div>
-                        <div className="flex gap-2">
-                             <div className="flex-1 space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Fonte</label>
-                                <select id="customTextFont" className="w-full">
-                                    <option value="Arial">Arial</option>
-                                    <option value="Times New Roman">Times New Roman</option>
-                                    <option value="Courier New">Courier New</option>
-                                    <option value="Verdana">Verdana</option>
-                                    <option value="Georgia">Georgia</option>
-                                    <option value="Impact">Impact</option>
-                                </select>
-                             </div>
-                             <div className="w-20 space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Tam.</label>
-                                <input id="customTextSizeNum" type="number" defaultValue="24" className="w-full" />
-                             </div>
-                             <div className="w-12 space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Cor</label>
-                                <input id="customTextColor" type="color" defaultValue="#000000" className="w-full h-[35px] p-0 border-0 cursor-pointer" />
-                             </div>
-                        </div>
-                        
-                        <div className="flex gap-2 pt-2">
-                            <button id="addCustomTextBtn" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-lg font-bold text-sm transition-colors">
-                                Adicionar Texto
-                            </button>
-                            <button id="cancelCustomTextBtn" className="bg-red-100 hover:bg-red-200 text-red-600 p-2.5 rounded-lg font-bold text-sm transition-colors" style={{display: 'none'}}>
-                                Cancelar
-                            </button>
-                        </div>
-                        
-                        <div id="textPreview" className="mt-2 p-4 bg-slate-50 border border-slate-200 rounded text-center text-slate-400 text-sm">
-                            Prévia do estilo
-                        </div>
-                    </div>
-                </div>
-
-                {/* TAB CONTENT: LAYOUT & BUTTONS */}
-                <div id="panelLayout" className="p-5 overflow-y-auto flex-1" style={{display: 'none'}}>
-                    <div className="space-y-6">
-                        
-                        {/* Section: Layout Structure */}
-                        <div className="space-y-3 pb-4 border-b border-slate-100">
-                             <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                <Layout size={16} className="text-indigo-500"/> Estrutura
-                             </h4>
-                             <div className="grid grid-cols-2 gap-3">
-                                 <div>
-                                     <label className="text-xs font-bold text-slate-500 block mb-1">Disposição</label>
-                                     <select id="layoutSelect" className="w-full">
-                                         <option value="3x2">Grade (3 Colunas)</option>
-                                         <option value="list">Lista (Vertical)</option>
-                                     </select>
-                                 </div>
-                                 <div>
-                                     <label className="text-xs font-bold text-slate-500 block mb-1">Qtd. Botões</label>
-                                     <input id="maxButtonsInput" type="number" min="1" max="12" defaultValue="6" className="w-full" />
-                                 </div>
-                                 <div>
-                                     <label className="text-xs font-bold text-slate-500 block mb-1">Formato</label>
-                                     <select id="shapeSelect" className="w-full">
-                                         <option value="8px">Arredondado</option>
-                                         <option value="0px">Quadrado</option>
-                                         <option value="20px">Pílula</option>
-                                         <option value="50%">Círculo (Apenas Grade)</option>
-                                     </select>
-                                 </div>
-                                 <div>
-                                     <label className="text-xs font-bold text-slate-500 block mb-1">Alinhamento</label>
-                                     <select id="alignSelect" className="w-full">
-                                         <option value="center">Centro</option>
-                                         <option value="left">Esquerda</option>
-                                         <option value="right">Direita</option>
-                                     </select>
-                                 </div>
-                             </div>
-                        </div>
-
-                        {/* Section: Button Style */}
-                        <div className="space-y-3 pb-4 border-b border-slate-100">
-                             <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                <Palette size={16} className="text-indigo-500"/> Estilo dos Botões
-                             </h4>
-                             <div className="grid grid-cols-2 gap-3">
-                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 block mb-1">Borda</label>
-                                    <div className="flex items-center gap-2">
-                                        <input id="btnBorderColor" type="color" defaultValue="#ffffff" className="w-8 h-8 p-0 border-0 cursor-pointer" />
-                                        <span className="text-xs text-slate-400">Cor</span>
+            {/* --- MAIN LAYOUT --- */}
+            <div className="fixed inset-0 z-40 bg-[#f8fafc] overflow-y-auto custom-scrollbar">
+                <div className="min-h-full w-full flex flex-col md:flex-row items-center justify-center p-4 pt-24 md:p-8 gap-8 md:gap-12">
+                
+                {/* --- LEFT PANEL (Desktop: Instructions) --- */}
+                <div className="hidden md:flex flex-col w-[320px] h-[711px] bg-white rounded-[20px] shadow-xl overflow-hidden shrink-0 transition-all duration-300">
+                    <div className="p-8 flex flex-col h-full">
+                        <h2 className="text-2xl font-bold text-slate-800 mb-6">Guia rápido</h2>
+                        <div className="space-y-6">
+                            {[
+                                {icon: 'image-outline', title: '1. Suba uma foto', desc: 'Faça Upload inicial para o fundo.'},
+                                {icon: 'settings-outline', title: '2. Configure o layout', desc: 'Personalize cores e botões.'},
+                                {icon: 'download-outline', title: '3. Faça o download', desc: 'Baixe em PDF, HTML ou QR Code.'}
+                            ].map((item, i) => (
+                                <div key={i} className="flex gap-4 p-4 bg-slate-50 rounded-xl hover:bg-blue-50 transition-colors group">
+                                    <div className="w-10 h-10 bg-[#00ABE4] rounded-full flex items-center justify-center text-white shrink-0">
+                                        <ion-icon name={item.icon} style={{fontSize: '20px'}}></ion-icon>
                                     </div>
-                                 </div>
-                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 block mb-1">Fundo (Fill)</label>
-                                    <div className="flex items-center gap-2">
-                                        <input id="btnBgColor" type="color" defaultValue="#ffffff" className="w-8 h-8 p-0 border-0 cursor-pointer opacity-50" title="Transparente se não selecionado" />
-                                        <span className="text-xs text-slate-400">Cor</span>
+                                    <div>
+                                        <strong className="block text-slate-700 mb-1">{item.title}</strong>
+                                        <p className="text-sm text-slate-500">{item.desc}</p>
                                     </div>
-                                 </div>
-                                 
-                                 {/* Icon Color & Toggle */}
-                                 <div className="col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                    <label className="text-xs font-bold text-slate-600 block mb-2">Ícone</label>
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <input id="btnIconColor" type="color" defaultValue="#ffffff" className="w-8 h-8 p-0 border-0 cursor-pointer" />
-                                            <span className="text-xs text-slate-400">Cor Personalizada</span>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="mt-auto p-4 bg-blue-50 rounded-xl border border-blue-100">
+                            <p className="text-sm text-blue-800 flex items-center gap-2">
+                                <ion-icon name="information-circle-outline" style={{fontSize: '18px'}}></ion-icon>
+                                <strong>Dica:</strong> Use a aba "Texto" no painel direito para adicionar textos personalizados.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- CENTER: CARD --- */}
+                <div className="relative z-10 shrink-0">
+                    <div 
+                        id="card" 
+                        ref={cardRef}
+                        className="relative bg-[#00ABE4] shadow-2xl overflow-hidden flex flex-col"
+                        style={{
+                            width: 'var(--card-w)',
+                            height: 'var(--card-h)',
+                            aspectRatio: window.innerWidth <= 768 ? '400/711' : 'auto',
+                            backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none',
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center'
+                        }}
+                    >
+                        {/* Header Controls */}
+                        <div id="cardHeaderControls" className="absolute top-0 left-0 w-full h-16 bg-gradient-to-b from-black/50 to-transparent grid grid-cols-3 items-center px-4 z-20">
+                            {/* Left: Upload */}
+                            <div className="flex justify-start">
+                                <button 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className={`w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center text-white transition-colors backdrop-blur-sm ${!imageUploaded ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={!imageUploaded}
+                                    title="Alterar Imagem"
+                                >
+                                    <Image size={24} />
+                                </button>
+                            </div>
+
+                            {/* Center: Download */}
+                            <div className="flex justify-center">
+                                <button 
+                                    onClick={() => setActivePanel('download')}
+                                    className={`w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center text-white transition-colors backdrop-blur-sm ${!imageUploaded ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={!imageUploaded}
+                                    title="Download"
+                                >
+                                    <Download size={24} />
+                                </button>
+                            </div>
+
+                            {/* Right: Settings */}
+                            <div className="flex justify-end">
+                                <button 
+                                    onClick={() => setActivePanel('config')}
+                                    className={`w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center text-white transition-colors backdrop-blur-sm ${!imageUploaded ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={!imageUploaded}
+                                    title="Configurações"
+                                >
+                                    <Settings size={24} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Upload Overlay */}
+                        {!imageUploaded && (
+                            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center p-8 text-center">
+                                <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mb-6 animate-bounce">
+                                    <ion-icon name="cloud-upload-outline" style={{fontSize: '48px', color: 'white'}}></ion-icon>
+                                </div>
+                                <h2 className="text-2xl font-bold text-white mb-2">Envie a imagem do cartão</h2>
+                                <p className="text-white/80 mb-8">Arraste e solte ou clique para selecionar</p>
+                                <button 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="px-8 py-4 bg-white/10 hover:bg-white/20 border-2 border-dashed border-white/50 rounded-xl text-white font-bold transition-all w-full"
+                                >
+                                    Selecionar Arquivo
+                                </button>
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    className="hidden" 
+                                    accept="image/*" 
+                                    onChange={handleImageUpload}
+                                />
+                            </div>
+                        )}
+
+                        {/* Custom Texts Layer */}
+                        {customTexts.map(text => (
+                            <div
+                                key={text.id}
+                                className="absolute cursor-move select-none z-10 group"
+                                style={{
+                                    left: `${text.x}%`,
+                                    top: `${text.y}%`,
+                                    fontFamily: text.font,
+                                    fontSize: text.size,
+                                    color: text.color,
+                                    whiteSpace: 'nowrap'
+                                }}
+                                onMouseDown={(e) => handleDragStart(e, text.id)}
+                                onTouchStart={(e) => handleDragStart(e, text.id)}
+                            >
+                                {text.text}
+                                <div className="absolute -top-3 -right-3 w-6 h-6 bg-red-500 rounded-full text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 cursor-pointer shadow-md" onClick={(e) => { e.stopPropagation(); removeCustomText(text.id); }}>×</div>
+                                <div className="absolute -top-3 -left-3 w-6 h-6 bg-blue-500 rounded-full text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 cursor-pointer shadow-md" onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setEditingTextId(text.id);
+                                    const input = document.getElementById('desktopTextInput') as HTMLInputElement;
+                                    if(input) input.value = text.text;
+                                    if(window.innerWidth <= 768) setActivePanel('config');
+                                }}>
+                                    <ion-icon name="pencil-outline"></ion-icon>
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* Buttons Grid */}
+                        <div className="mt-auto w-full relative z-0 p-4">
+                            {renderButtons()}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="absolute bottom-0 left-0 w-full bg-white/90 py-1 text-center border-t border-black/5 z-20">
+                            <a href="https://www.lexonline.com.br" target="_blank" className="text-[9px] font-bold text-slate-600 hover:text-blue-600">Feito por LexOnline</a>
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- RIGHT PANEL (Config/Download/Button) --- */}
+                <div className={`
+                    fixed inset-0 z-50 md:static md:inset-auto md:z-0
+                    flex flex-col w-full md:w-[480px] h-full md:h-[711px] 
+                    bg-white md:rounded-[20px] md:shadow-xl overflow-hidden 
+                    transition-transform duration-300
+                    ${activePanel !== 'none' || (window.innerWidth > 768 && imageUploaded) ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+                    ${window.innerWidth > 768 && !imageUploaded ? 'opacity-0 pointer-events-none' : 'opacity-100'}
+                `}>
+                    
+                    {/* Header (Mobile Only) */}
+                    <div className="md:hidden flex items-center justify-between p-4 border-b border-slate-100">
+                        <h3 className="font-bold text-lg text-slate-800">
+                            {activePanel === 'config' ? 'Configurações' : activePanel === 'button' ? 'Editar Botão' : 'Download'}
+                        </h3>
+                        <button onClick={() => setActivePanel('none')} className="p-2 bg-slate-100 rounded-full">✕</button>
+                    </div>
+
+                    {/* CONTENT: CONFIG PANEL */}
+                    {(activePanel === 'config' || (window.innerWidth > 768 && activePanel !== 'button' && activePanel !== 'download')) && (
+                        <div className="flex flex-col h-full">
+                            {/* Tabs (Mobile & Desktop) */}
+                            <div className="flex border-b border-slate-100">
+                                <button 
+                                    onClick={() => setMobileTab('text')}
+                                    className={`flex-1 py-3 font-medium text-sm ${mobileTab === 'text' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500'}`}
+                                >
+                                    Texto
+                                </button>
+                                <button 
+                                    onClick={() => setMobileTab('layout')}
+                                    className={`flex-1 py-3 font-medium text-sm ${mobileTab === 'layout' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500'}`}
+                                >
+                                    Layout
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
+                                {/* Text Tab Content */}
+                                <div className={`${mobileTab === 'text' ? 'block' : 'hidden'}`}>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Conteúdo</label>
+                                            <input 
+                                                id="configTextInput"
+                                                type="text" 
+                                                placeholder="Digite o texto..." 
+                                                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                                onChange={(e) => {
+                                                    if (editingTextId) updateCustomText(editingTextId, { text: e.target.value });
+                                                }}
+                                            />
                                         </div>
-                                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                                            <input id="useBrandColorCheckbox" type="checkbox" className="w-4 h-4 text-indigo-600 rounded border-slate-300" />
-                                            <span className="text-xs font-medium text-slate-600">Usar cor oficial da rede</span>
-                                        </label>
+                                        <div className="flex gap-3">
+                                            <div className="flex-1">
+                                                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Fonte</label>
+                                                <select 
+                                                    id="configFontSelect" 
+                                                    className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    onChange={(e) => {
+                                                        if (editingTextId) updateCustomText(editingTextId, { font: e.target.value });
+                                                    }}
+                                                >
+                                                    {['Arial', 'Inter', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana'].map(f => <option key={f} value={f}>{f}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="w-24">
+                                                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Tamanho</label>
+                                                <input 
+                                                    id="configSizeInput" 
+                                                    type="number" 
+                                                    defaultValue="24" 
+                                                    min="12" 
+                                                    max="72" 
+                                                    className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" 
+                                                    onChange={(e) => {
+                                                        if (editingTextId) updateCustomText(editingTextId, { size: e.target.value + 'px' });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Cor</label>
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    id="configColorInput" 
+                                                    type="color" 
+                                                    className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0" 
+                                                    defaultValue="#000000" 
+                                                    onChange={(e) => {
+                                                        const hexInput = document.getElementById('configColorHex') as HTMLInputElement;
+                                                        if (hexInput) hexInput.value = e.target.value.toUpperCase();
+                                                        if (editingTextId) updateCustomText(editingTextId, { color: e.target.value });
+                                                    }}
+                                                />
+                                                <input 
+                                                    id="configColorHex"
+                                                    type="text" 
+                                                    className="flex-1 p-2 border border-slate-200 rounded-lg text-sm uppercase focus:ring-2 focus:ring-blue-500 outline-none" 
+                                                    placeholder="#000000" 
+                                                    defaultValue="#000000"
+                                                    onChange={(e) => {
+                                                        const colorInput = document.getElementById('configColorInput') as HTMLInputElement;
+                                                        if (colorInput && /^#[0-9A-F]{6}$/i.test(e.target.value)) {
+                                                            colorInput.value = e.target.value;
+                                                            if (editingTextId) updateCustomText(editingTextId, { color: e.target.value });
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <button 
+                                            id="addCustomTextBtn"
+                                            onClick={() => {
+                                                const input = document.getElementById('configTextInput') as HTMLInputElement;
+                                                const font = (document.getElementById('configFontSelect') as HTMLSelectElement).value;
+                                                const size = (document.getElementById('configSizeInput') as HTMLInputElement).value;
+                                                const color = (document.getElementById('configColorInput') as HTMLInputElement).value;
+                                                
+                                                if (editingTextId) {
+                                                    updateCustomText(editingTextId, { text: input.value, font, size: size + 'px', color });
+                                                    setEditingTextId(null);
+                                                    input.value = '';
+                                                    
+                                                    // Reset button state
+                                                    const btn = document.getElementById('addCustomTextBtn');
+                                                    if (btn) {
+                                                        btn.textContent = 'Adicionar Texto ao Cartão';
+                                                        btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                                                        btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                                                    }
+                                                    
+                                                    showToast('Texto atualizado', 'success');
+                                                } else {
+                                                    addCustomText(input.value, font, size, color);
+                                                    input.value = '';
+                                                }
+                                            }}
+                                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-blue-500/20"
+                                        >
+                                            Adicionar Texto ao Cartão
+                                        </button>
+                                        
+                                        {editingTextId && (
+                                            <button 
+                                                onClick={() => {
+                                                    setEditingTextId(null);
+                                                    const input = document.getElementById('configTextInput') as HTMLInputElement;
+                                                    if (input) input.value = '';
+                                                    
+                                                    // Reset button state
+                                                    const btn = document.getElementById('addCustomTextBtn');
+                                                    if (btn) {
+                                                        btn.textContent = 'Adicionar Texto ao Cartão';
+                                                        btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                                                        btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                                                    }
+                                                }}
+                                                className="w-full py-2 text-slate-500 font-medium hover:text-slate-800 transition-colors"
+                                            >
+                                                Cancelar Edição
+                                            </button>
+                                        )}
                                     </div>
-                                 </div>
+                                </div>
 
-                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 block mb-1">Texto (Rótulo)</label>
-                                    <div className="flex items-center gap-2">
-                                        <input id="btnLabelColor" type="color" defaultValue="#ffffff" className="w-8 h-8 p-0 border-0 cursor-pointer" />
-                                        <span className="text-xs text-slate-400">Cor</span>
+                                {/* Layout Content */}
+                                <div className={`${mobileTab === 'layout' ? 'block' : 'hidden'} space-y-8`}>
+                                    <h2 className="hidden md:block text-2xl font-bold text-slate-800 mb-6">Layout</h2>
+                                    
+                                    {/* Shapes */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase mb-3 block">Formato</label>
+                                        <div className="flex gap-3">
+                                            {[
+                                                {val: '0px', label: '■'}, {val: '12px', label: '▢'}, 
+                                                {val: '50%', label: '●'}, {val: '4px', label: '▬'}, {val: '16px', label: '▭'}
+                                            ].map(s => (
+                                                <button 
+                                                    key={s.val}
+                                                    onClick={() => setSlotRadius(s.val)}
+                                                    className={`w-12 h-12 border-2 rounded-xl flex items-center justify-center text-xl transition-all ${slotRadius === s.val ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-400 hover:border-blue-300'}`}
+                                                    title={s.label}
+                                                >
+                                                    {s.label}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                 </div>
-                             </div>
+
+                                    {/* Max Buttons */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase mb-3 block">Número de Botões</label>
+                                        <div className="flex gap-3">
+                                            {[3, 4, 5, 6].map(n => (
+                                                <button 
+                                                    key={n}
+                                                    onClick={() => setMaxButtons(n)}
+                                                    className={`w-12 h-12 border-2 rounded-xl flex items-center justify-center font-bold transition-all ${maxButtons === n ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-400 hover:border-blue-300'}`}
+                                                >
+                                                    {n}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Layout Type */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase mb-3 block">Posicionamento</label>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {[
+                                                {id: '3x2', label: 'Grade'},
+                                                {id: 'vertical-left', label: 'Esq.'},
+                                                {id: 'vertical-right', label: 'Dir.'}
+                                            ].map(l => (
+                                                <button 
+                                                    key={l.id}
+                                                    onClick={() => setLayout(l.id)}
+                                                    className={`py-3 border-2 rounded-xl font-medium text-sm transition-all ${layout === l.id ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-500 hover:border-blue-300'}`}
+                                                >
+                                                    {l.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Global Style */}
+                                    <div className="pt-6 border-t border-slate-100">
+                                        <label className="text-xs font-bold text-slate-500 uppercase mb-3 block">Estilo Padrão</label>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm text-slate-600">Cor do Fundo</span>
+                                                <input type="color" value={defaultStyle.bg === 'transparent' ? '#ffffff' : defaultStyle.bg} onChange={(e) => setDefaultStyle({...defaultStyle, bg: e.target.value})} className="w-8 h-8 rounded cursor-pointer border-0" />
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm text-slate-600">Cor da Borda</span>
+                                                <input type="color" value={defaultStyle.border} onChange={(e) => setDefaultStyle({...defaultStyle, border: e.target.value})} className="w-8 h-8 rounded cursor-pointer border-0" />
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm text-slate-600">Cor do Texto</span>
+                                                <input type="color" value={defaultStyle.label} onChange={(e) => setDefaultStyle({...defaultStyle, label: e.target.value})} className="w-8 h-8 rounded cursor-pointer border-0" />
+                                            </div>
+                                            <label className="flex items-center gap-2 cursor-pointer mt-2">
+                                                <input type="checkbox" checked={defaultStyle.useNetworkColor} onChange={(e) => setDefaultStyle({...defaultStyle, useNetworkColor: e.target.checked})} className="rounded text-blue-600 focus:ring-blue-500" />
+                                                <span className="text-sm text-slate-600">Usar cores oficiais das redes</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                    )}
 
-                        {/* Section: Typography */}
-                        <div className="space-y-3">
-                             <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                <Type size={16} className="text-indigo-500"/> Tipografia do Botão
-                             </h4>
-                             <div className="grid grid-cols-2 gap-3">
-                                 <div className="col-span-2">
-                                     <label className="text-xs font-bold text-slate-500 block mb-1">Fonte</label>
-                                     <select id="btnFontFamily" className="w-full">
-                                         <option value="Arial">Arial</option>
-                                         <option value="Verdana">Verdana</option>
-                                         <option value="Helvetica">Helvetica</option>
-                                         <option value="Times New Roman">Times New Roman</option>
-                                         <option value="Courier New">Courier New</option>
-                                     </select>
-                                 </div>
-                                 <div>
-                                     <label className="text-xs font-bold text-slate-500 block mb-1">Tamanho (px)</label>
-                                     <select id="btnFontSize" className="w-full">
-                                         <option value="10px">10px</option>
-                                         <option value="11px">11px</option>
-                                         <option value="12px" selected>12px</option>
-                                         <option value="14px">14px</option>
-                                         <option value="16px">16px</option>
-                                     </select>
-                                 </div>
-                             </div>
+                    {/* CONTENT: BUTTON OVERLAY */}
+                    {activePanel === 'button' && editingButtonIndex !== null && (
+                        <div className="flex flex-col h-full p-6 md:p-8 overflow-y-auto custom-scrollbar">
+                            <h2 className="text-2xl font-bold text-slate-800 mb-6">Editar Botão {editingButtonIndex + 1}</h2>
+                            
+                            <div className="grid grid-cols-4 gap-3 mb-6">
+                                {REDES.map(r => (
+                                    <button 
+                                        key={r.key}
+                                        onClick={() => saveButton(editingButtonIndex!, { social: r.key, title: r.name })}
+                                        className={`flex flex-col items-center justify-center p-2 border rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all ${buttons[editingButtonIndex!].social === r.key ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-200' : 'border-slate-200'}`}
+                                    >
+                                        <ion-icon name={r.icon} style={{fontSize: '24px', color: r.key === 'vcard' ? '#6366f1' : '#334155'}}></ion-icon>
+                                        <span className="text-[10px] mt-1 text-slate-600 truncate w-full text-center">{r.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Título</label>
+                                    <input 
+                                        type="text" 
+                                        value={buttons[editingButtonIndex].title} 
+                                        onChange={(e) => saveButton(editingButtonIndex!, { title: e.target.value })}
+                                        className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Link (URL)</label>
+                                    <input 
+                                        type="text" 
+                                        value={buttons[editingButtonIndex].url} 
+                                        onChange={(e) => saveButton(editingButtonIndex!, { url: e.target.value })}
+                                        placeholder="https://..."
+                                        className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                                
+                                <div className="flex gap-3 mt-6">
+                                    <button onClick={() => removeButton(editingButtonIndex!)} className="flex-1 py-3 border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-colors">Remover</button>
+                                    <button onClick={() => setActivePanel(window.innerWidth > 768 ? 'config' : 'none')} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors">Concluir</button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
+
+                    {/* CONTENT: DOWNLOAD OVERLAY */}
+                    {activePanel === 'download' && (
+                        <div className="flex flex-col h-full p-6 md:p-8">
+                            <h2 className="text-2xl font-bold text-slate-800 mb-6">Download</h2>
+                            
+                            <div className="space-y-4">
+                                <button onClick={() => handleDownload('pdf')} className="w-full flex items-center gap-4 p-4 border-2 border-slate-100 rounded-2xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                                    <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-colors">
+                                        <ion-icon name="document-outline" style={{fontSize: '24px'}}></ion-icon>
+                                    </div>
+                                    <div className="text-left">
+                                        <strong className="block text-slate-800">PDF Interativo</strong>
+                                        <span className="text-sm text-slate-500">Ideal para enviar por WhatsApp</span>
+                                    </div>
+                                </button>
+
+                                <button onClick={() => handleDownload('qrcode')} className="w-full flex items-center gap-4 p-4 border-2 border-slate-100 rounded-2xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                                    <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center group-hover:bg-slate-800 group-hover:text-white transition-colors">
+                                        <ion-icon name="qr-code-outline" style={{fontSize: '24px'}}></ion-icon>
+                                    </div>
+                                    <div className="text-left">
+                                        <strong className="block text-slate-800">QR Code</strong>
+                                        <span className="text-sm text-slate-500">Para imprimir ou compartilhar</span>
+                                    </div>
+                                </button>
+                            </div>
+
+                            <div className="mt-auto">
+                                <button onClick={() => setActivePanel(window.innerWidth > 768 ? 'config' : 'none')} className="w-full py-3 text-slate-500 font-medium hover:text-slate-800">Voltar</button>
+                            </div>
+                        </div>
+                    )}
+
                 </div>
             </div>
-
-            <div id="buttonOverlay" className="side-panel">
-                <div className="flex justify-between items-center p-5 border-b border-slate-200">
-                    <h3 className="text-xl font-bold">Escolher Rede Social</h3>
-                    <button id="closeButtonOverlay" className="text-2xl p-2 hover:bg-slate-100 rounded-full">✕</button>
-                </div>
-                <div id="socialGrid" className="social-grid"></div>
-                <div id="formInline"></div>
-            </div>
-
-            <div id="downloadOverlay" className="side-panel p-5">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold">Download</h3>
-                    <button id="closeDownload" className="text-2xl">✕</button>
-                </div>
-                <div className="space-y-4">
-                    <label className="font-bold text-sm text-slate-600">Nome do Cartão (Arquivo)</label>
-                    <input id="filenameInput" type="text" defaultValue="meu-cartao" className="w-full" />
-                    <button id="executeDownloadBtn" className="w-full bg-green-600 text-white p-3 rounded font-bold mt-4 shadow-lg hover:bg-green-700 flex items-center justify-center gap-2">
-                        <Save size={18} /> Salvar e Baixar PDF
-                    </button>
-                </div>
-            </div>
-
         </div>
-      </div>
-      <div id="toastMessage" className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded shadow-lg opacity-0 transition-opacity z-[10000]"></div>
     </div>
-  );
+    );
 };
+
+export default InteractiveCard;

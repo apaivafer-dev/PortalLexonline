@@ -80,8 +80,7 @@ export const Layout = ({ children, activePage, setActivePage, userProfile, onLog
     { id: 'leads', label: 'CRM', icon: <User size={20} /> },
     { id: 'calculator', label: 'Calculadora', icon: <Calculator size={20} /> },
     { id: 'banner', label: 'Criador de Banner', icon: <Image size={20} /> },
-    { id: 'interactive-card', label: 'Cartão Interativo', icon: <IdCard size={20} /> },
-    { id: 'company', label: 'Empresa', icon: <Building2 size={20} /> },
+    { id: 'interactive-card', label: 'Cartão', icon: <IdCard size={20} /> },
     { id: 'profile', label: 'Meu Perfil', icon: <UserCircle size={20} /> },
   ];
 
@@ -383,15 +382,6 @@ export const Layout = ({ children, activePage, setActivePage, userProfile, onLog
                                     className="w-full text-left px-4 py-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl flex items-center gap-3 transition-colors"
                                 >
                                     <UserCircle size={18} className="text-slate-400" /> Meu Perfil
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setActivePage('company');
-                                        setIsUserMenuOpen(false);
-                                    }}
-                                    className="w-full text-left px-4 py-3 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl flex items-center gap-3 transition-colors"
-                                >
-                                    <Settings size={18} className="text-slate-400" /> Empresa
                                 </button>
                             </div>
 

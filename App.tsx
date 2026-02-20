@@ -225,9 +225,14 @@ export default function App() {
             />
         );
       case 'profile':
-        return <ProfileSettings profile={userProfile} onUpdate={setUserProfile} />;
-      case 'company':
-        return <CompanySettings company={companyProfile} onUpdate={setCompanyProfile} />;
+        return (
+            <ProfileSettings 
+                profile={userProfile} 
+                onUpdate={setUserProfile} 
+                company={companyProfile}
+                onUpdateCompany={setCompanyProfile}
+            />
+        );
       case 'banner':
         return <BannerCreator initialCompanyName={companyProfile.name} userProfile={userProfile} />;
       case 'interactive-card':
