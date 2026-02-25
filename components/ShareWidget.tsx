@@ -35,7 +35,8 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
     const [isDraggingPreview, setIsDraggingPreview] = useState(false);
     const dragOffset = useRef({ x: 0, y: 0 });
 
-    const publicUrl = `https://app.lexonline.com.br/c/${username}/calculorescisaotrabalhista`;
+    const baseUrl = import.meta.env.VITE_FRONTEND_URL || 'https://portallexonline-app.web.app';
+    const publicUrl = `${baseUrl}/c/${username}/calculorescisaotrabalhista`;
 
     useEffect(() => {
         setActiveTab(initialTab);
@@ -46,7 +47,7 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
         if (!previewContainerRef.current) return;
         const container = previewContainerRef.current;
         const padding = 24; // 6 in tailwind = 24px
-        
+
         let x = 0;
         let y = 0;
 
@@ -65,7 +66,7 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
     const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
         if (!previewContainerRef.current) return;
         setIsDraggingPreview(true);
-        
+
         const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
@@ -88,10 +89,10 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
         // Calculate new position relative to the preview container, not screen
         // We use the mouse position minus the offset we grabbed the button at
         // And adjust for the container's position on screen
-        
+
         // Simplified approach for the contained preview:
         // Movement delta isn't enough because we are setting absolute 'left/top' style
-        
+
         // 1. Get mouse pos relative to container
         const relX = clientX - rect.left;
         const relY = clientY - rect.top;
@@ -99,21 +100,21 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
         // 2. Apply offset (where inside the button we clicked)
         // Note: This needs a bit of 'fake' logic since we track pos state directly
         // Let's just track raw movement for simplicity in this demo or follow standard drag logic
-        
+
         // Actually, let's use a simpler approach for the preview:
         // Set pos to mouse pos minus half button width/height (centering) 
         // OR better: use the initial offset.
-        
+
         // Since we can't easily get the button rect inside the handler without ref,
         // we'll approximate centering for the UX demo feel
-        
+
         let newX = relX - (dragOffset.current.x - rect.left); // Adjust based on where we clicked relative to screen
         let newY = relY - (dragOffset.current.y - rect.top);
 
         // Boundaries
         const maxX = container.clientWidth - 50; // allow partial overlap
         const maxY = container.clientHeight - 40;
-        
+
         if (newX < 0) newX = 0;
         if (newX > maxX) newX = maxX;
         if (newY < 0) newY = 0;
@@ -136,7 +137,7 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
     const generateWidgetCode = () => {
         // We generate a self-contained script to ensure the drag functionality works 
         // without depending on an external file update for this demo.
-        
+
         const scriptContent = `
 (function() {
   // Config
@@ -316,20 +317,20 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
 
             {/* Navigation Tabs */}
             <div className="flex gap-8 border-b border-slate-200 dark:border-slate-700 mt-2 overflow-x-auto">
-                <button 
+                <button
                     onClick={() => setActiveTab('embed')}
                     className={`pb-4 px-2 font-medium text-sm transition-all flex items-center gap-2 border-b-2 whitespace-nowrap
-                        ${activeTab === 'embed' 
-                            ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' 
+                        ${activeTab === 'embed'
+                            ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
                             : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:border-slate-300'}`}
                 >
                     <Code size={18} /> Link Direto & Embed Simples
                 </button>
-                <button 
+                <button
                     onClick={() => setActiveTab('widget')}
                     className={`pb-4 px-2 font-medium text-sm transition-all flex items-center gap-2 border-b-2 whitespace-nowrap
-                        ${activeTab === 'widget' 
-                            ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' 
+                        ${activeTab === 'widget'
+                            ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
                             : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:border-slate-300'}`}
                 >
                     <MessageSquare size={18} /> Criador de Widget Flutuante
@@ -347,12 +348,12 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
                         <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
                             Use este código para exibir a calculadora inteira dentro de uma página do seu site (WordPress, Wix, etc).
                         </p>
-                        
+
                         <div className="bg-slate-900 rounded-lg p-4 relative group">
                             <code className="text-green-400 font-mono text-sm break-all block">
                                 &lt;iframe src="{publicUrl}" width="100%" height="800px" frameborder="0"&gt;&lt;/iframe&gt;
                             </code>
-                            <button 
+                            <button
                                 onClick={() => handleCopy(`<iframe src="${publicUrl}" width="100%" height="800px" frameborder="0"></iframe>`)}
                                 className="absolute top-2 right-2 p-2 bg-white/10 hover:bg-white/20 rounded text-white transition-colors"
                             >
@@ -369,14 +370,14 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
                         <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
                             Link ideal para colocar na Bio do Instagram, enviar por WhatsApp ou usar em campanhas de email.
                         </p>
-                        
+
                         <div className="flex gap-2">
-                            <input 
-                                readOnly 
+                            <input
+                                readOnly
                                 value={publicUrl}
                                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 text-sm text-slate-600 dark:text-slate-300 outline-none"
                             />
-                            <button 
+                            <button
                                 onClick={() => handleCopy(publicUrl)}
                                 className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-lg font-medium text-sm hover:bg-indigo-200 dark:hover:bg-indigo-900 transition-colors"
                             >
@@ -390,11 +391,11 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
             {/* TAB: WIDGET BUILDER */}
             {activeTab === 'widget' && (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in slide-in-from-bottom-2 fade-in">
-                    
+
                     {/* Left: Configuration */}
                     <div className="lg:col-span-5 space-y-6">
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
-                            
+
                             {/* Visual Config */}
                             <div className="space-y-4">
                                 <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
@@ -413,8 +414,8 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
                                             />
                                         ))}
                                         <div className="relative ml-2">
-                                            <input 
-                                                type="color" 
+                                            <input
+                                                type="color"
                                                 value={widgetColor}
                                                 onChange={(e) => setWidgetColor(e.target.value)}
                                                 className="w-10 h-10 p-0 rounded-lg border-0 cursor-pointer overflow-hidden"
@@ -424,11 +425,11 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
-                                     <div>
+                                    <div>
                                         <label className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 block">Cor do Texto</label>
                                         <div className="flex items-center gap-2">
-                                            <input 
-                                                type="color" 
+                                            <input
+                                                type="color"
                                                 value={widgetTextColor}
                                                 onChange={(e) => setWidgetTextColor(e.target.value)}
                                                 className="w-8 h-8 p-0 rounded border-0 cursor-pointer"
@@ -438,7 +439,7 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
                                     </div>
                                     <div>
                                         <label className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 block">Posição Inicial</label>
-                                        <select 
+                                        <select
                                             value={widgetPosition}
                                             onChange={(e) => setWidgetPosition(e.target.value as WidgetPosition)}
                                             className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-sm dark:text-white"
@@ -453,7 +454,7 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
 
                                 <div>
                                     <label className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 block">Texto do Botão</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         value={widgetText}
                                         onChange={(e) => setWidgetText(e.target.value)}
@@ -470,20 +471,20 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
 
                                 <div className="space-y-3">
                                     <label className="flex items-center gap-3 cursor-pointer">
-                                        <input 
-                                            type="radio" 
-                                            name="action" 
+                                        <input
+                                            type="radio"
+                                            name="action"
                                             checked={widgetAction === 'modal'}
                                             onChange={() => setWidgetAction('modal')}
                                             className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
                                         />
                                         <span className="text-sm text-slate-700 dark:text-slate-300">Abrir Calculadora Padrão (Modal)</span>
                                     </label>
-                                    
+
                                     <label className="flex items-center gap-3 cursor-pointer">
-                                        <input 
-                                            type="radio" 
-                                            name="action" 
+                                        <input
+                                            type="radio"
+                                            name="action"
                                             checked={widgetAction === 'link'}
                                             onChange={() => setWidgetAction('link')}
                                             className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
@@ -497,7 +498,7 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
                                         <label className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 block">URL de Destino</label>
                                         <div className="relative">
                                             <ArrowUpRight className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                                            <input 
+                                            <input
                                                 type="url"
                                                 placeholder="https://seusite.com/contato"
                                                 value={targetUrl}
@@ -513,9 +514,9 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
 
                     {/* Right: Preview & Code */}
                     <div className="lg:col-span-7 space-y-6">
-                        
+
                         {/* Live Preview */}
-                        <div 
+                        <div
                             ref={previewContainerRef}
                             className="bg-slate-100 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-[400px] relative"
                             onMouseMove={handleMouseMove}
@@ -534,12 +535,12 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
                                     seusite.com.br
                                 </div>
                             </div>
-                            
+
                             <div className="relative flex-1 bg-white dark:bg-slate-950 p-8 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
                                 <div className="absolute top-4 right-4 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded border border-yellow-200 flex items-center gap-1">
                                     <Hand size={12} /> Tente arrastar o botão!
                                 </div>
-                                
+
                                 <div className="max-w-md mx-auto space-y-4 opacity-20 pointer-events-none select-none">
                                     <div className="h-8 bg-slate-300 dark:bg-slate-800 rounded w-3/4"></div>
                                     <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded"></div>
@@ -550,13 +551,13 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
                                 </div>
 
                                 {/* The Floating Widget Preview - Draggable */}
-                                <div 
+                                <div
                                     onMouseDown={handleMouseDown}
                                     onTouchStart={handleMouseDown}
                                     className={`absolute flex items-center gap-3 p-4 shadow-xl rounded-full select-none
                                         ${isDraggingPreview ? 'cursor-grabbing scale-95' : 'cursor-grab hover:scale-105 animate-pulse'}
                                     `}
-                                    style={{ 
+                                    style={{
                                         backgroundColor: widgetColor,
                                         color: widgetTextColor,
                                         left: previewPos.x,
@@ -585,12 +586,12 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
                                 O código abaixo inclui toda a funcionalidade de <strong>Arrastar e Soltar (Desktop e Mobile)</strong> automaticamente.
                                 Copie e cole antes da tag de fechamento <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-indigo-500">&lt;/body&gt;</code>.
                             </p>
-                            
+
                             <div className="bg-slate-900 rounded-lg p-4 relative group">
                                 <code className="text-blue-300 font-mono text-xs sm:text-sm break-all whitespace-pre-wrap block leading-relaxed max-h-64 overflow-y-auto custom-scrollbar">
                                     {generateWidgetCode()}
                                 </code>
-                                <button 
+                                <button
                                     onClick={() => handleCopy(generateWidgetCode())}
                                     className="absolute top-2 right-2 p-2 bg-white/10 hover:bg-white/20 rounded text-white transition-colors"
                                 >

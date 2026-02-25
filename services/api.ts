@@ -335,6 +335,12 @@ export const publishApi = {
     async getPublicCalculator(slug: string) {
         return request<any>(`/publish/public/calculator/${slug}`);
     },
+    async submitPublicLead(slug: string, data: { name: string; email: string; phone?: string; estimatedValue?: number }) {
+        return request<any>(`/publish/public/leads/${slug}`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
 };
 
 export const dashboardApi = {

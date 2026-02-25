@@ -36,7 +36,7 @@ export async function seedAdminUser(): Promise<void> {
         `INSERT INTO company_profiles (id, user_id, name, phone, email, website, cep, street, number, complement, neighborhood, city, state, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [uuidv4(), adminId, 'Paiva & Associados Advocacia', '(11) 99999-9999', adminEmail,
-            'https://app.lexonline.com.br', '01310-100', 'Av. Paulista', '1000', 'Conj 101', 'Bela Vista', 'São Paulo', 'SP', now, now]
+        process.env.FRONTEND_URL || 'https://portallexonline-app.web.app', '01310-100', 'Av. Paulista', '1000', 'Conj 101', 'Bela Vista', 'São Paulo', 'SP', now, now]
     );
 
     // Calculator Pipeline

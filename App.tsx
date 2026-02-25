@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Layout } from './components/Layout';
 import { CalculatorApp } from './components/Calculator';
+import { PublicCalculatorApp } from './components/PublicCalculatorApp';
 import { Dashboard } from './components/Dashboard';
 import { ProfileSettings } from './components/ProfileSettings';
 import { LeadsList } from './components/LeadsList';
@@ -304,6 +305,13 @@ export default function App() {
   };
 
   // ── Render ─────────────────────────────────────────────────────────────
+
+  // Public Calculator Route interception (bypassing auth)
+  const pathParts = window.location.pathname.split('/');
+  if (pathParts[1] === 'c' && pathParts[2]) {
+    return <PublicCalculatorApp slug={pathParts[2]} />;
+  }
+
   if (!isAuthenticated) {
     if (authView === 'register') {
       return <RegisterPage onRegister={() => setAuthView('login')} onBackToLogin={() => setAuthView('login')} />;

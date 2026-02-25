@@ -75,6 +75,7 @@ interface CalculatorAppProps {
   companyProfile: CompanyProfile;
   onUpdateFirmName?: (name: string) => void;
   username?: string;
+  isPublic?: boolean;
 }
 
 const InfoTooltip = ({ text }: { text: string }) => {
@@ -258,7 +259,7 @@ const SEOGuide = ({ company }: { company: CompanyProfile }) => {
   );
 };
 
-export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: CalculatorAppProps) => {
+export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPublic = false }: CalculatorAppProps) => {
   const [activeTab, setActiveTab] = useState<'page' | 'settings'>('page');
   const [step, setStep] = useState<'input' | 'lead' | 'result'>('input');
   const [input, setInput] = useState<CalculatorInput>(INITIAL_INPUT);
@@ -351,7 +352,8 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
   const firmName = companyProfile.name;
   const currentYear = new Date().getFullYear();
   const displayTitle = firmName && firmName.trim() !== '' ? firmName : `Calculadora Rescisão em ${cityName}`;
-  const publicUrl = `https://app.lexonline.com.br/c/${username || 'usuario'}/calculorescisaotrabalhista`;
+  const baseUrl = import.meta.env.VITE_FRONTEND_URL || 'https://portallexonline-app.web.app';
+  const publicUrl = `${baseUrl}/c/${username || 'usuario'}/calculorescisaotrabalhista`;
   const activePhone = customPhoneNumber || companyProfile.phone;
 
   // --- Handlers ---
@@ -544,7 +546,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
     }
   };
 
-  const submitLead = (e: React.FormEvent) => {
+  const submitLead = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Email validation
@@ -560,6 +562,22 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
       alert("Necessário aceitar os termos da LGPD.");
       return;
     }
+
+    if (isPublic && username) {
+      try {
+        await publishApi.submitPublicLead(username, {
+          name: leadData.name,
+          email: leadData.email,
+          phone: leadData.phone,
+          estimatedValue: result?.netTotal || 0,
+        });
+      } catch (err: any) {
+        console.error("Erro ao enviar lead", err);
+        // We still proceed to result to not block the user, 
+        // but normally we might want to alert if CRM fails
+      }
+    }
+
     setStep('result');
   };
 
@@ -608,28 +626,30 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
     <div className="w-full space-y-8">
 
       {/* --- TAB NAVIGATION --- */}
-      <div className="bg-white dark:bg-[#1A1D23] rounded-full p-1.5 shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-slate-100 dark:border-white/5 w-fit mx-auto">
-        <div className="flex">
-          <button
-            onClick={() => setActiveTab('page')}
-            className={`px-6 py-2.5 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all
+      {!isPublic && (
+        <div className="bg-white dark:bg-[#1A1D23] rounded-full p-1.5 shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-slate-100 dark:border-white/5 w-fit mx-auto">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('page')}
+              className={`px-6 py-2.5 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all
                       ${activeTab === 'page'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5'}`}
-          >
-            <Layout size={16} /> Página da Calculadora
-          </button>
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`px-6 py-2.5 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all
+                  ? 'bg-slate-900 text-white shadow-md'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5'}`}
+            >
+              <Layout size={16} /> Página da Calculadora
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`px-6 py-2.5 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all
                       ${activeTab === 'settings'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5'}`}
-          >
-            <Settings size={16} /> Configurações
-          </button>
+                  ? 'bg-slate-900 text-white shadow-md'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5'}`}
+            >
+              <Settings size={16} /> Configurações
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* --- TAB: PAGE (CALCULATOR UI) --- */}
       {activeTab === 'page' && (
@@ -643,16 +663,16 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
                   <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm">
                     <Calculator className="h-6 w-6 text-white" />
                   </div>
-                  {isEditingTitle ? (
+                  {!isPublic && isEditingTitle ? (
                     <div className="flex items-center gap-2 w-full max-w-lg animate-in fade-in slide-in-from-left-2 duration-200">
                       <input type="text" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} autoFocus className="bg-white/10 text-white placeholder-slate-400 border border-white/20 rounded-xl px-4 py-2 text-2xl font-bold outline-none focus:ring-2 focus:ring-white/50 w-full" />
                       <button onClick={handleSaveEdit} className="p-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl"><Check size={20} /></button>
                       <button onClick={() => setIsEditingTitle(false)} className="p-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl"><X size={20} /></button>
                     </div>
                   ) : (
-                    <div className="group cursor-pointer" onClick={onUpdateFirmName ? handleStartEdit : undefined}>
+                    <div className={!isPublic && onUpdateFirmName ? "group cursor-pointer" : "group"} onClick={!isPublic && onUpdateFirmName ? handleStartEdit : undefined}>
                       <h2 className="text-3xl font-bold truncate tracking-tight">{displayTitle}</h2>
-                      {onUpdateFirmName && (
+                      {!isPublic && onUpdateFirmName && (
                         <div className="flex items-center gap-1.5 text-slate-400 text-sm mt-1 group-hover:text-white transition-colors">
                           <Pencil size={12} /><span>Clique para editar título</span>
                         </div>
@@ -660,7 +680,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username }: Ca
                     </div>
                   )}
                 </div>
-                {username && isPublished && (
+                {!isPublic && username && isPublished && (
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/10 hover:bg-white/20 transition-all">
                       <span className="flex items-center gap-2 text-xs font-bold text-green-400 uppercase tracking-wide">

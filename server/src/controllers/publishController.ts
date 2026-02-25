@@ -108,9 +108,77 @@ export async function unpublishCalculator(req: AuthenticatedRequest, res: Respon
     try {
         const db = await getDatabase();
         const now = new Date().toISOString();
-        await db.run('UPDATE published_calculators SET is_active = false, updated_at = ? WHERE user_id = ?', [now, req.user!.userId]);
+        const result = await db.run('DELETE FROM published_calculators WHERE user_id = ?', req.user!.userId);
         res.json({ success: true, message: 'Calculadora despublicada' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Erro ao despublicar calculadora' });
+    }
+}
+
+export async function submitPublicLead(req: Request, res: Response): Promise<void> {
+    const slug = req.params.slug as string;
+    const { name, email, phone, estimatedValue, notes } = req.body;
+
+    if (!slug || !/^[a-z0-9._-]+$/i.test(slug)) {
+        res.status(400).json({ success: false, error: 'Slug inválido' });
+        return;
+    }
+
+    if (!name || !email) {
+        res.status(400).json({ success: false, error: 'Nome e email são obrigatórios' });
+        return;
+    }
+
+    try {
+        const db = await getDatabase();
+
+        // Find user by slug
+        const user = await db.get('SELECT id, company_id FROM users WHERE slug = ?', slug);
+        if (!user) {
+            res.status(404).json({ success: false, error: 'Conta não encontrada' });
+            return;
+        }
+
+        const userId = user.id;
+        const companyId = user.company_id;
+
+        // Try to find "Calculadora Rescisão" pipeline
+        let pipeline = await db.get('SELECT id FROM pipelines WHERE user_id = ? AND name = ?', [userId, 'Calculadora Rescisão']);
+
+        if (!pipeline) {
+            // Fallback to first pipeline
+            pipeline = await db.get('SELECT id FROM pipelines WHERE user_id = ? ORDER BY sort_order ASC LIMIT 1', userId);
+        }
+
+        if (!pipeline) {
+            res.status(500).json({ success: false, error: 'Pipeline não configurado para este usuário' });
+            return;
+        }
+
+        // Try to find "Novo" stage or first stage
+        let stage = await db.get('SELECT id FROM pipeline_stages WHERE pipeline_id = ? AND name = ?', [pipeline.id, 'Novo']);
+        if (!stage) {
+            stage = await db.get('SELECT id FROM pipeline_stages WHERE pipeline_id = ? ORDER BY stage_order ASC LIMIT 1', pipeline.id);
+        }
+
+        if (!stage) {
+            res.status(500).json({ success: false, error: 'Estágio não configurado' });
+            return;
+        }
+
+        const leadId = uuidv4();
+        const now = new Date().toISOString();
+
+        await db.run(
+            `INSERT INTO leads (id, user_id, company_id, name, email, phone, pipeline_id, stage_id, estimated_value, notes, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [leadId, userId, companyId, name, email, phone || '', pipeline.id, stage.id, estimatedValue || 0, notes || '', now, now]
+        );
+
+        res.json({ success: true, message: 'Lead capturado com sucesso' });
+
+    } catch (error) {
+        console.error('Submit public lead error:', error);
+        res.status(500).json({ success: false, error: 'Erro interno ao salvar lead' });
     }
 }
