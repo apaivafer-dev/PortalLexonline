@@ -1,0 +1,33 @@
+[36m[1mi [22m[39m This command retrieves your Runtime Config values (accessed via [1mfunctions.config()[22m) and exports them as a Secret Manager secret.
+
+[36m[1mi [22m[39m Fetching your existing functions.config() from [1mportallexonline-app[22m...
+[32m[1m+ [22m[39m Fetched your existing functions.config().
+
+
+[32m[1m+ [22m[39m Created new secret version projects/237181358822/secrets/FUNCTIONS_CONFIG_EXPORT/versions/1
+
+[36m[1mi [22m[39m [1mTo complete the migration, update your code:[22m
+
+[90m  // Before:
+  const functions = require('firebase-functions');
+
+  exports.myFunction = functions.https.onRequest((req, res) => {
+    const apiKey = functions.config().service.key;
+    // ...
+  });
+
+  // After:
+  const functions = require('firebase-functions');
+  const { defineJsonSecret } = require('firebase-functions/params');
+
+  const config = defineJsonSecret("FUNCTIONS_CONFIG_EXPORT");
+
+  exports.myFunction = functions
+    .runWith({ secrets: [config] })  // Bind secret here
+    .https.onRequest((req, res) => {
+      const apiKey = config.value().service.key;
+      // ...
+    });[39m
+
+[36m[1mi [22m[39m Then deploy your functions:
+  [1mfirebase deploy --only functions[22m

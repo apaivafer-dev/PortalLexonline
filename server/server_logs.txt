@@ -1,0 +1,52 @@
+🚀 LexOnline API rodando locamente em: http://localhost:3001
+📊 Health check: http://localhost:3001/api/health
+[ERROR] 2026-02-24T22:12:36.845Z - POST /api/auth/forgot-password: SyntaxError: Bad escaped character in JSON at position 9 (line 1 column 10)
+    at JSON.parse (<anonymous>)
+    at parse (C:\Projetos\lexonline\PortalLexonline\server\node_modules\body-parser\lib\types\json.js:92:19)
+    at C:\Projetos\lexonline\PortalLexonline\server\node_modules\body-parser\lib\read.js:128:18
+    at AsyncResource.runInAsyncScope (node:async_hooks:214:14)
+    at invokeCallback (C:\Projetos\lexonline\PortalLexonline\server\node_modules\raw-body\index.js:238:16)
+    at done (C:\Projetos\lexonline\PortalLexonline\server\node_modules\raw-body\index.js:227:7)
+    at IncomingMessage.onEnd (C:\Projetos\lexonline\PortalLexonline\server\node_modules\raw-body\index.js:287:7)
+    at IncomingMessage.emit (node:events:519:28)
+    at IncomingMessage.emit (node:domain:489:12)
+    at endReadableNT (node:internal/streams/readable:1698:12) {
+  expose: true,
+  statusCode: 400,
+  status: 400,
+  body: '{" email\\:\\test@example.com\\}',
+  type: 'entity.parse.failed'
+}
+[ERROR] 2026-02-24T22:12:54.648Z - POST /api/auth/forgot-password: SyntaxError: Bad escaped character in JSON at position 9 (line 1 column 10)
+    at JSON.parse (<anonymous>)
+    at parse (C:\Projetos\lexonline\PortalLexonline\server\node_modules\body-parser\lib\types\json.js:92:19)
+    at C:\Projetos\lexonline\PortalLexonline\server\node_modules\body-parser\lib\read.js:128:18
+    at AsyncResource.runInAsyncScope (node:async_hooks:214:14)
+    at invokeCallback (C:\Projetos\lexonline\PortalLexonline\server\node_modules\raw-body\index.js:238:16)
+    at done (C:\Projetos\lexonline\PortalLexonline\server\node_modules\raw-body\index.js:227:7)
+    at IncomingMessage.onEnd (C:\Projetos\lexonline\PortalLexonline\server\node_modules\raw-body\index.js:287:7)
+    at IncomingMessage.emit (node:events:519:28)
+    at IncomingMessage.emit (node:domain:489:12)
+    at endReadableNT (node:internal/streams/readable:1698:12) {
+  expose: true,
+  statusCode: 400,
+  status: 400,
+  body: '{" email\\:\\test@example.com\\}',
+  type: 'entity.parse.failed'
+}
+[2026-02-24T22:13:43.208Z] POST /api/auth/forgot-password
+(node:12164) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✅ Database PostgreSQL initialized successfully
+ℹ️  Admin user already exists, ensured Owner role.
+[2026-02-24T22:14:15.555Z] POST /api/auth/forgot-password/
+[2026-02-24T22:14:48.000Z] POST /api/auth/forgot-password
+[2026-02-24T22:14:48.886Z] POST /api/auth/confirm-email
+[2026-02-24T22:14:48.938Z] POST /api/auth/reset-password
