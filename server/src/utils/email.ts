@@ -107,7 +107,7 @@ export async function sendCalculationResultEmail(
   company: CompanyInfo,
   pdfBase64: string | null,
   calculationHtml: string | null,
-  cc?: string
+  bcc?: string
 ) {
   const cleanPhone = company.phone.replace(/\D/g, '');
   const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent('Olá, quero falar com um especialista sobre meu cálculo de rescisão.')}`;
@@ -213,7 +213,7 @@ export async function sendCalculationResultEmail(
   await getResend().emails.send({
     from: 'LexOnline <no-reply@lexonline.com.br>',
     to,
-    cc,
+    bcc,
     subject: `Seu Cálculo de Rescisão Trabalhista - ${company.firmName}`,
     html,
     attachments: attachments.length > 0 ? attachments : undefined,
