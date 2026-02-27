@@ -5,6 +5,19 @@ import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { UserProfile } from '../types';
 import { cardsApi } from '../services/api';
+import {
+    Lock, Settings, Clock, Plus, ArrowLeft, Trash2, Type, Layout, Palette, Save,
+    Smartphone, Mail, MapPin, Globe, Phone, ExternalLink, Calendar,
+    MessageCircle, Facebook, Instagram, Youtube, Twitter, Linkedin
+} from 'lucide-react';
+
+interface CardButton {
+    active: boolean;
+    title: string;
+    social: string | null;
+    url: string;
+    style?: any;
+}
 
 // Declare types for Ionicons and window libraries
 declare global {
@@ -23,26 +36,26 @@ const NETWORK_DEFAULT_COLORS: Record<string, string> = {
 };
 
 const REDES = [
-  {key: 'whatsapp', name: 'WhatsApp', urlPrefix: 'https://wa.me/', icon: 'logo-whatsapp'},
-  {key: 'telegram', name: 'Telegram', urlPrefix: 'https://t.me/', icon: 'send-outline'},
-  {key: 'telefone', name: 'Telefone', urlPrefix: 'tel:', icon: 'call-outline'},
-  {key: 'email', name: 'Email', urlPrefix: 'mailto:', icon: 'mail-outline'},
-  {key: 'agendamento', name: 'Agendamento', urlPrefix: 'https://calendly.com/', icon: 'calendar-outline'},
-  {key: 'pagamento', name: 'Pagamento', urlPrefix: 'https://pay.me/', icon: 'cash-outline'},
-  {key: 'vcard', name: 'Vcard', icon: 'person-circle-outline'},
-  {key: 'linkedin', name: 'LinkedIn', urlPrefix: 'https://linkedin.com/in/', icon: 'logo-linkedin'},
-  {key: 'site', name: 'Website', urlPrefix: 'https://', icon: 'globe-outline'},
-  {key: 'behance', name: 'Behance', urlPrefix: 'https://www.behance.net/', icon: 'logo-behance'},
-  {key: 'loja', name: 'Loja Online', urlPrefix: 'https://myshop.com/', icon: 'bag-handle-outline'},
-  {key: 'instagram', name: 'Instagram', urlPrefix: 'https://instagram.com/', icon: 'logo-instagram'},
-  {key: 'facebook', name: 'Facebook', urlPrefix: 'https://facebook.com/', icon: 'logo-facebook'},
-  {key: 'youtube', name: 'YouTube', urlPrefix: 'https://youtube.com/', icon: 'logo-youtube'},
-  {key: 'tiktok', name: 'TikTok', urlPrefix: 'https://tiktok.com/@', icon: 'logo-tiktok'},
-  {key: 'twitter', name: 'Twitter', urlPrefix: 'https://twitter.com/', icon: 'logo-twitter'},
-  {key: 'medium', name: 'Medium', urlPrefix: 'https://medium.com/@', icon: 'logo-medium'},
-  {key: 'spotify', name: 'Spotify', urlPrefix: 'https://open.spotify.com/', icon: 'musical-notes-outline'},
-  {key: 'discord', name: 'Discord', urlPrefix: 'https://discord.gg/', icon: 'logo-discord'},
-  {key: 'localizacao', name: 'Localização', urlPrefix: 'https://maps.google.com/?q=', icon: 'location-outline'}
+    { key: 'whatsapp', name: 'WhatsApp', urlPrefix: 'https://wa.me/', icon: 'logo-whatsapp' },
+    { key: 'telegram', name: 'Telegram', urlPrefix: 'https://t.me/', icon: 'send-outline' },
+    { key: 'telefone', name: 'Telefone', urlPrefix: 'tel:', icon: 'call-outline' },
+    { key: 'email', name: 'Email', urlPrefix: 'mailto:', icon: 'mail-outline' },
+    { key: 'agendamento', name: 'Agendamento', urlPrefix: 'https://calendly.com/', icon: 'calendar-outline' },
+    { key: 'pagamento', name: 'Pagamento', urlPrefix: 'https://pay.me/', icon: 'cash-outline' },
+    { key: 'vcard', name: 'Vcard', icon: 'person-circle-outline' },
+    { key: 'linkedin', name: 'LinkedIn', urlPrefix: 'https://linkedin.com/in/', icon: 'logo-linkedin' },
+    { key: 'site', name: 'Website', urlPrefix: 'https://', icon: 'globe-outline' },
+    { key: 'behance', name: 'Behance', urlPrefix: 'https://www.behance.net/', icon: 'logo-behance' },
+    { key: 'loja', name: 'Loja Online', urlPrefix: 'https://myshop.com/', icon: 'bag-handle-outline' },
+    { key: 'instagram', name: 'Instagram', urlPrefix: 'https://instagram.com/', icon: 'logo-instagram' },
+    { key: 'facebook', name: 'Facebook', urlPrefix: 'https://facebook.com/', icon: 'logo-facebook' },
+    { key: 'youtube', name: 'YouTube', urlPrefix: 'https://youtube.com/', icon: 'logo-youtube' },
+    { key: 'tiktok', name: 'TikTok', urlPrefix: 'https://tiktok.com/@', icon: 'logo-tiktok' },
+    { key: 'twitter', name: 'Twitter', urlPrefix: 'https://twitter.com/', icon: 'logo-twitter' },
+    { key: 'medium', name: 'Medium', urlPrefix: 'https://medium.com/@', icon: 'logo-medium' },
+    { key: 'spotify', name: 'Spotify', urlPrefix: 'https://open.spotify.com/', icon: 'musical-notes-outline' },
+    { key: 'discord', name: 'Discord', urlPrefix: 'https://discord.gg/', icon: 'logo-discord' },
+    { key: 'localizacao', name: 'Localização', urlPrefix: 'https://maps.google.com/?q=', icon: 'location-outline' }
 ];
 
 const DEFAULT_BUTTON_STYLE = {
@@ -98,15 +111,6 @@ interface CardConfig {
     customTexts: CustomText[];
 }
 
-const DEFAULT_BUTTON_STYLE = {
-    border: '#ffffff',
-    bg: '#ffffff', // changed default to white for better visibility
-    icon: '#000000',
-    label: '#ffffff',
-    fontFamily: 'Arial',
-    fontSize: '12px',
-    borderWidth: '2px'
-};
 
 const DEFAULT_CONFIG: Omit<CardConfig, 'id' | 'createdAt' | 'cardName'> = {
     layout: '3x2',
@@ -239,7 +243,6 @@ export const InteractiveCard = ({ userProfile }: InteractiveCardProps) => {
             alert("Sua conta possui mais cartões do que o permitido no plano Trial. Faça o upgrade para voltar a editar.");
             return;
         }
-    }, [toast]);
 
         setCurrentConfig(card);
         setViewMode('editor');

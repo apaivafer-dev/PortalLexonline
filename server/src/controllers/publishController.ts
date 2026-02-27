@@ -203,7 +203,8 @@ export async function submitPublicLead(req: Request, res: Response): Promise<voi
                 name,
                 companyInfo,
                 pdfBase64 || null,
-                calculationHtml || null
+                calculationHtml || null,
+                user.lawyer_email // Send a copy to the lawyer
             );
         } catch (emailErr) {
             // Email failure should not block the response

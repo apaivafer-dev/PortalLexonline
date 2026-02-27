@@ -3,18 +3,24 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resendClient: Resend | null = null;
+function getResend() {
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 export async function sendConfirmationEmail(email: string, name: string, token: string) {
-    const confirmLink = `${frontendUrl}/confirm-email?token=${token}`;
+  const confirmLink = `${frontendUrl}/confirm-email?token=${token}`;
 
-    try {
-        await resend.emails.send({
-            from: 'LexOnline <no-reply@lexonline.com.br>',
-            to: email,
-            subject: 'Confirme seu email - LexOnline',
-            html: `
+  try {
+    await getResend().emails.send({
+      from: 'LexOnline <no-reply@lexonline.com.br>',
+      to: email,
+      subject: 'Confirme seu email - LexOnline',
+      html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
                     <h2 style="color: #4f46e5;">Bem-vindo ao LexOnline, ${name}!</h2>
                     <p>Ficamos felizes em ter você conosco. Para começar a usar todas as funcionalidades, por favor confirme seu endereço de email clicando no botão abaixo:</p>
@@ -26,21 +32,21 @@ export async function sendConfirmationEmail(email: string, name: string, token: 
                     <p style="font-size: 12px; color: #94a3b8;">Se você não criou esta conta, por favor ignore este email.</p>
                 </div>
             `
-        });
-    } catch (error) {
-        console.error('Error sending confirmation email:', error);
-    }
+    });
+  } catch (error) {
+    console.error('Error sending confirmation email:', error);
+  }
 }
 
 export async function sendPasswordResetEmail(email: string, name: string, token: string) {
-    const resetLink = `${frontendUrl}/reset-password?token=${token}`;
+  const resetLink = `${frontendUrl}/reset-password?token=${token}`;
 
-    try {
-        await resend.emails.send({
-            from: 'LexOnline <no-reply@lexonline.com.br>',
-            to: email,
-            subject: 'Redefinição de Senha - LexOnline',
-            html: `
+  try {
+    await getResend().emails.send({
+      from: 'LexOnline <no-reply@lexonline.com.br>',
+      to: email,
+      subject: 'Redefinição de Senha - LexOnline',
+      html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
                     <h2 style="color: #4f46e5;">Olá, ${name}</h2>
                     <p>Recebemos uma solicitação para redefinir a senha da sua conta LexOnline.</p>
@@ -53,21 +59,21 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
                     <p style="font-size: 12px; color: #94a3b8;">Se você não solicitou a redefinição, pode ignorar este email com segurança.</p>
                 </div>
             `
-        });
-    } catch (error) {
-        console.error('Error sending password reset email:', error);
-    }
+    });
+  } catch (error) {
+    console.error('Error sending password reset email:', error);
+  }
 }
 
 export async function sendWelcomeInviteEmail(email: string, name: string, token: string) {
-    const inviteLink = `${frontendUrl}/setup-password?token=${token}`;
+  const inviteLink = `${frontendUrl}/setup-password?token=${token}`;
 
-    try {
-        await resend.emails.send({
-            from: 'LexOnline <no-reply@lexonline.com.br>',
-            to: email,
-            subject: 'Você foi convidado para o LexOnline',
-            html: `
+  try {
+    await getResend().emails.send({
+      from: 'LexOnline <no-reply@lexonline.com.br>',
+      to: email,
+      subject: 'Você foi convidado para o LexOnline',
+      html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
                     <h2 style="color: #4f46e5;">Parabéns, ${name}!</h2>
                     <p>Você foi convidado para acessar a plataforma LexOnline.</p>
@@ -80,42 +86,43 @@ export async function sendWelcomeInviteEmail(email: string, name: string, token:
                     <p style="font-size: 12px; color: #94a3b8;">Seja bem-vindo!</p>
                 </div>
             `
-        });
-    } catch (error) {
-        console.error('Error sending invite email:', error);
-    }
+    });
+  } catch (error) {
+    console.error('Error sending invite email:', error);
+  }
 }
 
 export interface CompanyInfo {
-    firmName: string;
-    phone: string;
-    email: string;
-    website: string;
-    city: string;
-    state: string;
+  firmName: string;
+  phone: string;
+  email: string;
+  website: string;
+  city: string;
+  state: string;
 }
 
 export async function sendCalculationResultEmail(
-    to: string,
-    recipientName: string,
-    company: CompanyInfo,
-    pdfBase64: string | null,
-    calculationHtml: string | null
+  to: string,
+  recipientName: string,
+  company: CompanyInfo,
+  pdfBase64: string | null,
+  calculationHtml: string | null,
+  cc?: string
 ) {
-    const cleanPhone = company.phone.replace(/\D/g, '');
-    const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent('Olá, quero falar com um especialista sobre meu cálculo de rescisão.')}`;
+  const cleanPhone = company.phone.replace(/\D/g, '');
+  const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent('Olá, quero falar com um especialista sobre meu cálculo de rescisão.')}`;
 
-    const attachments: any[] = [];
-    if (pdfBase64) {
-        const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
-        attachments.push({
-            filename: 'calculo-rescisao.pdf',
-            content: base64Data,
-            type: 'application/pdf',
-        });
-    }
+  const attachments: any[] = [];
+  if (pdfBase64) {
+    const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
+    attachments.push({
+      filename: 'calculo-rescisao.pdf',
+      content: base64Data,
+      type: 'application/pdf',
+    });
+  }
 
-    const html = `
+  const html = `
         <!DOCTYPE html>
         <html lang="pt-BR">
         <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
@@ -136,7 +143,6 @@ export async function sendCalculationResultEmail(
               <tr>
                 <td style="padding:40px 40px 24px;">
                   <div style="text-align:center;margin-bottom:32px;">
-                    <div style="width:72px;height:72px;background:#dcfce7;border-radius:50%;display:inline-block;line-height:72px;margin-bottom:16px;font-size:36px;">&#127881;</div>
                     <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:800;">Parabéns, ${recipientName}!</h2>
                     <p style="margin:0;color:#475569;font-size:15px;line-height:1.6;">
                       Seu cálculo de rescisão trabalhista foi processado com sucesso.<br/>
@@ -204,11 +210,12 @@ export async function sendCalculationResultEmail(
         </html>
     `;
 
-    await resend.emails.send({
-        from: 'LexOnline <no-reply@lexonline.com.br>',
-        to,
-        subject: `Seu Cálculo de Rescisão Trabalhista - ${company.firmName}`,
-        html,
-        attachments: attachments.length > 0 ? attachments : undefined,
-    });
+  await getResend().emails.send({
+    from: 'LexOnline <no-reply@lexonline.com.br>',
+    to,
+    cc,
+    subject: `Seu Cálculo de Rescisão Trabalhista - ${company.firmName}`,
+    html,
+    attachments: attachments.length > 0 ? attachments : undefined,
+  });
 }
