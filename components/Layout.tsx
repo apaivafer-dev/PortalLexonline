@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Moon, Sun, Calculator, PieChart, User, Menu, X, LogOut, Share2, UserCircle, ChevronRight, ChevronLeft, Bell, AlertTriangle, CheckCircle, Building2, Image, IdCard, Settings, Clock, ShieldAlert, Lock } from 'lucide-react';
+import { Moon, Sun, Calculator, PieChart, User, Menu, X, LogOut, Share2, UserCircle, ChevronRight, ChevronLeft, Bell, AlertTriangle, CheckCircle, Building2, Image, IdCard, Settings, Clock, ShieldAlert, Lock, Users } from 'lucide-react';
 import { UserProfile, Lead } from '../types';
 import { formatCurrency } from '../lib/utils';
 
@@ -94,9 +94,10 @@ export const Layout = ({ children, activePage, setActivePage, userProfile, onLog
         ? allNavItems.filter(item => item.trialAccess)
         : allNavItems;
 
-    // Add Admin item only if user is Owner
+    // Add Admin items only if user is Owner
     if (isOwner) {
-        navItems.push({ id: 'admin', label: 'Administrador', icon: <ShieldAlert size={20} />, trialAccess: false });
+        navItems.push({ id: 'admin', label: 'Painel Admin', icon: <PieChart size={20} />, trialAccess: false });
+        navItems.push({ id: 'users-admin', label: 'Usuários', icon: <Users size={20} />, trialAccess: false });
     }
 
     const handleNavClick = (id: string) => {

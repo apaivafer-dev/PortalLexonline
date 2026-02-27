@@ -291,7 +291,62 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
   const [widgetAction, setWidgetAction] = useState<'modal' | 'link'>('modal');
   const [targetUrl, setTargetUrl] = useState('');
 
+  const [headerBgColor, setHeaderBgColor] = useState('#0f172a');
+  const [headerFontColor, setHeaderFontColor] = useState('#ffffff');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+  useEffect(() => {
+    // Inject tracking scripts dynamically if configured and we are in public view
+    const injectScripts = () => {
+      // 1. Google Analytics / Google Ads
+      const googleId = gaCode || googleAdsId;
+      if (googleId && !document.getElementById('gtag-base')) {
+        const script = document.createElement('script');
+        script.async = true;
+        script.id = 'gtag-base';
+        script.src = `https://www.googletagmanager.com/gtag/js?id=${googleId}`;
+        document.head.appendChild(script);
+
+        const inlineScript = document.createElement('script');
+        inlineScript.id = 'gtag-config';
+        inlineScript.innerHTML = `
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          ${gaCode ? `gtag('config', '${gaCode}');` : ''}
+          ${googleAdsId ? `gtag('config', '${googleAdsId}');` : ''}
+        `;
+        document.head.appendChild(inlineScript);
+      }
+
+      // 2. Meta Pixel
+      if (adsId && !document.getElementById('meta-pixel-base')) {
+        const metaScript = document.createElement('script');
+        metaScript.id = 'meta-pixel-base';
+        metaScript.innerHTML = `
+          !function(f,b,e,v,n,t,s)
+          {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+          n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+          if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+          n.queue=[];t=b.createElement(e);t.async=!0;
+          t.src=v;s=b.getElementsByTagName(e)[0];
+          s.parentNode.insertBefore(t,s)}(window, document,'script',
+          'https://connect.facebook.net/en_US/fbevents.js');
+          fbq('init', '${adsId}');
+          fbq('track', 'PageView');
+        `;
+        document.head.appendChild(metaScript);
+
+        const noscript = document.createElement('noscript');
+        noscript.innerHTML = `<img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${adsId}&ev=PageView&noscript=1" />`;
+        document.head.appendChild(noscript);
+      }
+    };
+
+    if (gaCode || adsId || googleAdsId) {
+      injectScripts();
+    }
+  }, [gaCode, adsId, googleAdsId]);
 
   useEffect(() => {
     const fetchPublished = async () => {
@@ -311,6 +366,16 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
           if (config.widgetPosition) setWidgetPosition(config.widgetPosition);
           if (config.widgetAction) setWidgetAction(config.widgetAction);
           if (config.targetUrl) setTargetUrl(config.targetUrl);
+          if (publishedData.header_bg_color) setHeaderBgColor(publishedData.header_bg_color);
+          if (publishedData.header_font_color) setHeaderFontColor(publishedData.header_font_color);
+
+          // Recovery for top-level fields
+          if (publishedData.company_name !== undefined && publishedData.company_name !== null) {
+            if (onUpdateFirmName) onUpdateFirmName(publishedData.company_name);
+          }
+          if (publishedData.whatsapp_number !== undefined && publishedData.whatsapp_number !== null) {
+            setCustomPhoneNumber(publishedData.whatsapp_number);
+          }
         }
       } catch (err: any) {
         if (err.message !== 'Calculadora não publicada') {
@@ -329,9 +394,11 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
           gaCode, adsId, googleAdsId, googleAdsLabel, customPhoneNumber, whatsappMessage, widgetColor, widgetText, widgetPosition, widgetAction, targetUrl
         };
         await publishApi.publishCalculator({
-          companyName: companyProfile.name,
+          companyName: displayTitle,
           whatsappNumber: customPhoneNumber,
           whatsappMessage,
+          headerBgColor,
+          headerFontColor,
           config
         } as any);
         alert('Configurações salvas e calculadora publicada com sucesso!');
@@ -347,12 +414,45 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
     }
   };
 
+  // --- Conversion Tracking ---
+  const triggerConversions = () => {
+    // Google Ads Conversion
+    if (googleAdsId && googleAdsLabel) {
+      try {
+        const w = window as any;
+        if (typeof w.gtag === 'function') {
+          w.gtag('event', 'conversion', {
+            send_to: `${googleAdsId}/${googleAdsLabel}`,
+          });
+        }
+      } catch (e) { console.warn('gtag not available', e); }
+    }
+    // Meta Pixel Lead Event
+    if (adsId) {
+      try {
+        const w = window as any;
+        if (typeof w.fbq === 'function') {
+          w.fbq('track', 'Lead');
+        }
+      } catch (e) { console.warn('fbq not available', e); }
+    }
+    // Google Analytics event
+    if (gaCode) {
+      try {
+        const w = window as any;
+        if (typeof w.gtag === 'function') {
+          w.gtag('event', 'generate_lead', { event_category: 'Calculator', event_label: 'Lead Form Submit' });
+        }
+      } catch (e) { console.warn('gtag not available', e); }
+    }
+  };
+
   // Derived data
   const cityName = companyProfile.address.city || "Sua Cidade";
   const firmName = companyProfile.name;
   const currentYear = new Date().getFullYear();
   const displayTitle = firmName && firmName.trim() !== '' ? firmName : `Calculadora Rescisão em ${cityName}`;
-  const baseUrl = import.meta.env.VITE_FRONTEND_URL || 'https://portallexonline-app.web.app';
+  const baseUrl = (import.meta as any).env.VITE_FRONTEND_URL || 'https://portallexonline-app.web.app';
   const publicUrl = `${baseUrl}/c/${username || 'usuario'}/calculorescisaotrabalhista`;
   const activePhone = customPhoneNumber || companyProfile.phone;
 
@@ -552,17 +652,94 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(leadData.email)) {
-      setLeadErrors({ email: "Por favor, insira um e-mail válido." });
+      setLeadErrors({ email: 'Por favor, insira um e-mail válido.' });
       return;
     }
-    // Clear errors if valid
     setLeadErrors({});
 
     if (!leadData.consent) {
-      alert("Necessário aceitar os termos da LGPD.");
+      alert('Necessário aceitar os termos para continuar.');
       return;
     }
 
+    setIsGeneratingPdf(true);
+
+    // --- Generate PDF as base64 for email attachment ---
+    let pdfBase64: string | null = null;
+    let calculationHtml: string | null = null;
+    try {
+      const resultElement = document.getElementById('calculation-result-hidden');
+      if (resultElement && result) {
+        const canvas = await html2canvas(resultElement, { scale: 2, backgroundColor: '#ffffff', logging: false });
+
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const margin = 10;
+        const currentY = 15;
+
+        // Company header box
+        pdf.setFillColor(248, 250, 252);
+        pdf.setDrawColor(203, 213, 225);
+        pdf.roundedRect(margin, currentY, pdfWidth - margin * 2, 55, 3, 3, 'FD');
+        const contentX = margin + 8;
+        let textY = currentY + 10;
+        pdf.setFontSize(14); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(30, 41, 59);
+        pdf.text(companyProfile.name || 'Advocacia Trabalhista', contentX, textY);
+        textY += 8;
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(71, 85, 105);
+        const addr = companyProfile.address;
+        pdf.text(`Endereço: ${addr.street}, ${addr.number} - ${addr.neighborhood}`, contentX, textY); textY += 5;
+        pdf.text(`${addr.city} - ${addr.state}, CEP: ${addr.cep}`, contentX, textY); textY += 8;
+        pdf.text(`Email: ${companyProfile.email}`, contentX, textY);
+        if (companyProfile.website) pdf.text(`Site: ${companyProfile.website}`, contentX + 80, textY);
+        textY += 8;
+        const cleanPhone = companyProfile.phone.replace(/\D/g, '');
+        const whatsMsg = encodeURIComponent('Quero falar com um especialista');
+        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(37, 99, 235);
+        pdf.textWithLink(`Tel: ${companyProfile.phone}`, contentX, textY, { url: `tel:${cleanPhone}` });
+        pdf.setTextColor(22, 163, 74);
+        pdf.textWithLink(`WhatsApp: ${companyProfile.phone}`, contentX + 60, textY, { url: `https://wa.me/55${cleanPhone}?text=${whatsMsg}` });
+        textY += 6; pdf.setFontSize(8); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(148, 163, 184);
+        pdf.text('(Clique nos números acima para entrar em contato)', contentX, textY);
+
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = pdfWidth - margin * 2;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        pdf.addImage(imgData, 'PNG', margin, currentY + 60, imgWidth, imgHeight);
+        pdf.setFontSize(8); pdf.setTextColor(150); pdf.setFont('helvetica', 'normal');
+        pdf.text(`Gerado em ${new Date().toLocaleDateString()} por Portal LexOnline`, margin, pdf.internal.pageSize.getHeight() - 10);
+
+        pdfBase64 = pdf.output('datauristring');
+
+        // Simple HTML table summary for email body
+        calculationHtml = `
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="background:#f1f5f9;">
+              <th style="padding:8px;text-align:left;">Verba</th>
+              <th style="padding:8px;text-align:right;color:#16a34a;">Proventos</th>
+              <th style="padding:8px;text-align:right;color:#dc2626;">Descontos</th>
+            </tr></thead>
+            <tbody>
+              ${result.items.map(item => `<tr>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">${item.description}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:right;color:#16a34a;">${item.type === 'earning' ? 'R$ ' + item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:right;color:#dc2626;">${item.type === 'deduction' ? 'R$ ' + item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>
+              </tr>`).join('')}
+            </tbody>
+            <tfoot><tr style="background:#0f172a;color:#fff;">
+              <td style="padding:10px 8px;font-weight:800;">Líquido a Receber</td>
+              <td colspan="2" style="padding:10px 8px;text-align:right;font-weight:800;font-size:16px;">R$ ${result.netTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+            </tr></tfoot>
+          </table>
+        `;
+      }
+    } catch (pdfErr) {
+      console.warn('PDF generation failed, sending email without attachment:', pdfErr);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+
+    // Submit lead to backend (saves to CRM + sends email with PDF)
     if (isPublic && username) {
       try {
         await publishApi.submitPublicLead(username, {
@@ -570,13 +747,16 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
           email: leadData.email,
           phone: leadData.phone,
           estimatedValue: result?.netTotal || 0,
-        });
+          pdfBase64,
+          calculationHtml,
+        } as any);
       } catch (err: any) {
-        console.error("Erro ao enviar lead", err);
-        // We still proceed to result to not block the user, 
-        // but normally we might want to alert if CRM fails
+        console.error('Erro ao enviar lead', err);
       }
     }
+
+    // Fire conversion tags
+    triggerConversions();
 
     setStep('result');
   };
@@ -604,9 +784,9 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
   };
 
   const getInputClass = (fieldName: keyof CalculatorInput) => {
-    const baseClass = "w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-white/5 border rounded-2xl outline-none transition-all dark:text-white";
-    const validClass = "border-transparent hover:border-slate-200 dark:hover:border-white/10 focus:border-slate-300 dark:focus:border-white/20 focus:ring-4 focus:ring-slate-100 dark:focus:ring-white/5";
-    const errorClass = "border-red-300 focus:ring-4 focus:ring-red-100 bg-red-50 dark:bg-red-900/10";
+    const baseClass = "w-full pl-12 pr-4 py-4 bg-transparent border-b-2 border-slate-100 dark:border-white/10 outline-none transition-all dark:text-white text-3xl font-bold text-[#0f172a] dark:text-white placeholder:text-slate-300";
+    const validClass = "focus:border-[#0f172a] dark:focus:border-white/40";
+    const errorClass = "border-red-300 bg-red-50 dark:bg-red-900/10";
     return `${baseClass} ${errors[fieldName] ? errorClass : validClass}`;
   };
 
@@ -620,7 +800,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
     }
   };
 
-  const noticeOptions: NoticeType[] = ['Indenizado', 'Trabalhado', 'Dispensado/Não Cumprido'];
+  const noticeOptions: NoticeType[] = ['Indenizado', 'Dispensado/Não Cumprido', 'Trabalhado'];
 
   return (
     <div className="w-full space-y-8">
@@ -655,13 +835,17 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
       {activeTab === 'page' && (
         <div className="bg-white dark:bg-[#1A1D23] rounded-[40px] shadow-[0_4px_30px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-white/5 overflow-hidden w-full relative z-10 animate-in fade-in slide-in-from-bottom-2">
           {/* ... (Header and Calculator Inputs remain unchanged) ... */}
-          <div className="bg-slate-900 dark:bg-black p-8 md:p-10 text-white transition-all">
+          <div
+            id="calculator-header"
+            className="p-8 md:p-10 transition-all"
+            style={{ backgroundColor: headerBgColor, color: headerFontColor }}
+          >
             <div className="flex flex-col gap-4">
-              <h1 className="sr-only">Calculadora de Rescisão Trabalhista em {cityName}</h1>
+              <h1 className="sr-only">Calculadora de Rescisão Trabalhista em {cityName} – Simulador CLT Gratuito</h1>
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm">
-                    <Calculator className="h-6 w-6 text-white" />
+                    <Calculator className="h-6 w-6" style={{ color: headerFontColor }} />
                   </div>
                   {!isPublic && isEditingTitle ? (
                     <div className="flex items-center gap-2 w-full max-w-lg animate-in fade-in slide-in-from-left-2 duration-200">
@@ -670,13 +854,8 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
                       <button onClick={() => setIsEditingTitle(false)} className="p-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl"><X size={20} /></button>
                     </div>
                   ) : (
-                    <div className={!isPublic && onUpdateFirmName ? "group cursor-pointer" : "group"} onClick={!isPublic && onUpdateFirmName ? handleStartEdit : undefined}>
-                      <h2 className="text-3xl font-bold truncate tracking-tight">{displayTitle}</h2>
-                      {!isPublic && onUpdateFirmName && (
-                        <div className="flex items-center gap-1.5 text-slate-400 text-sm mt-1 group-hover:text-white transition-colors">
-                          <Pencil size={12} /><span>Clique para editar título</span>
-                        </div>
-                      )}
+                    <div className="group">
+                      <h2 className="text-3xl font-bold truncate tracking-tight" style={{ color: headerFontColor }}>{displayTitle}</h2>
                     </div>
                   )}
                 </div>
@@ -693,7 +872,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
                   </div>
                 )}
               </div>
-              <p className="text-slate-400 max-w-2xl text-lg">Simulador de rescisão CLT atualizado {currentYear}. Cálculo exato considerando as leis trabalhistas.</p>
+              <p className="max-w-2xl text-lg opacity-70" style={{ color: headerFontColor }}>Simulador de rescisão CLT atualizado {currentYear}. Cálculo exato considerando as leis trabalhistas.</p>
             </div>
           </div>
 
@@ -710,33 +889,50 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div className="space-y-2.5">
-                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1 flex items-center gap-2">
+                      <label className="text-sm font-bold text-slate-900 dark:text-slate-300 ml-1 flex items-center gap-2">
                         Último Salário Bruto
                         <InfoTooltip text="Informe o salário base registrado em carteira, sem os descontos." />
                       </label>
-                      <div className="relative group">
-                        <div className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-slate-800 dark:group-focus-within:text-white transition-colors">
-                          <DollarSign size={18} />
+                      <div className="flex items-center gap-4">
+                        <div className="relative flex-1 group">
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 text-slate-300">
+                            <span className="text-3xl font-bold">$</span>
+                          </div>
+                          <div className="flex items-center">
+                            <input
+                              type="text"
+                              value={new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(input.salary)}
+                              readOnly
+                              className={getInputClass('salary') + " !pl-8 bg-transparent border-0 ring-0 focus:ring-0 cursor-default"}
+                            />
+                          </div>
                         </div>
-                        <input type="number" value={input.salary} onChange={(e) => handleInputChange('salary', Number(e.target.value))} className={getInputClass('salary')} placeholder="0,00" />
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleInputChange('salary', Math.max(0, input.salary - 100))} className="w-10 h-10 rounded-full bg-[#0f172a] text-white flex items-center justify-center hover:opacity-90 transition-opacity">
+                            <span className="text-2xl font-bold">-</span>
+                          </button>
+                          <button onClick={() => handleInputChange('salary', input.salary + 100)} className="w-10 h-10 rounded-full bg-[#0f172a] text-white flex items-center justify-center hover:opacity-90 transition-opacity">
+                            <span className="text-2xl font-bold">+</span>
+                          </button>
+                        </div>
                       </div>
                       {errors.salary && <p className="text-xs text-red-500 flex items-center gap-1 ml-1 font-medium"><AlertTriangle size={12} />{errors.salary}</p>}
                     </div>
-                    <div className="space-y-2.5">
-                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">Data de Admissão</label>
+                    <div className="space-y-4">
+                      <label className="text-sm font-bold text-slate-900 dark:text-slate-300 ml-1">Data de Admissão</label>
                       <div className="relative group">
-                        <div className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-slate-800 dark:group-focus-within:text-white transition-colors">
-                          <Calendar size={18} />
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 text-blue-500">
+                          <Pencil size={24} />
                         </div>
                         <input type="date" value={input.startDate} onChange={(e) => handleInputChange('startDate', e.target.value)} className={getInputClass('startDate')} />
                       </div>
                       {errors.startDate && <p className="text-xs text-red-500 flex items-center gap-1 ml-1 font-medium"><AlertTriangle size={12} />{errors.startDate}</p>}
                     </div>
-                    <div className="space-y-2.5">
-                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">Data de Afastamento</label>
+                    <div className="space-y-4">
+                      <label className="text-sm font-bold text-slate-900 dark:text-slate-300 ml-1">Data de Afastamento</label>
                       <div className="relative group">
-                        <div className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-slate-800 dark:group-focus-within:text-white transition-colors">
-                          <Calendar size={18} />
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 text-blue-500">
+                          <Pencil size={24} />
                         </div>
                         <input type="date" value={input.endDate} onChange={(e) => handleInputChange('endDate', e.target.value)} className={getInputClass('endDate')} />
                       </div>
@@ -748,7 +944,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
                         {Object.values(TerminationType).map(t => {
                           const isActive = input.terminationType === t;
                           return (
-                            <button key={t} onClick={() => handleInputChange('terminationType', t)} className={`flex-1 min-w-[150px] py-3 px-6 rounded-xl text-sm font-medium transition-all duration-200 ${isActive ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md ring-1 ring-black/5 dark:ring-white/10' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5'}`}>
+                            <button key={t} onClick={() => handleInputChange('terminationType', t)} className={`flex-1 min-w-[150px] py-4 px-6 rounded-xl text-sm font-bold transition-all duration-200 ${isActive ? 'bg-[#0f172a] text-white shadow-xl scale-105' : 'bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-100'}`}>
                               {t}
                             </button>
                           );
@@ -773,7 +969,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
                         {noticeOptions.map((option) => {
                           const isActive = input.noticeType === option;
                           return (
-                            <button key={option} onClick={() => handleInputChange('noticeType', option)} className={`flex-1 py-3 px-6 rounded-xl text-sm font-medium transition-all duration-200 ${isActive ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md ring-1 ring-black/5 dark:ring-white/10' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5'}`}>
+                            <button key={option} onClick={() => handleInputChange('noticeType', option)} className={`flex-1 py-4 px-6 rounded-xl text-sm font-bold transition-all duration-200 ${isActive ? 'bg-[#0f172a] text-white shadow-xl scale-105' : 'bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-100'}`}>
                               {option}
                             </button>
                           );
@@ -782,111 +978,155 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
                     </div>
                     {input.noticeType === 'Trabalhado' && (
                       <>
-                        <div className="space-y-2.5 animate-in fade-in slide-in-from-top-2">
-                          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">Início do Aviso</label>
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                          <label className="text-sm font-bold text-slate-900 dark:text-slate-300 ml-1">Início do Aviso</label>
                           <div className="relative group">
-                            <div className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-slate-800 dark:group-focus-within:text-white transition-colors">
-                              <Calendar size={18} />
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 text-blue-500">
+                              <Pencil size={24} />
                             </div>
                             <input type="date" value={input.noticeStartDate || ''} onChange={(e) => handleInputChange('noticeStartDate', e.target.value)} className={getInputClass('noticeStartDate')} />
                           </div>
-                          {errors.noticeStartDate && <p className="text-xs text-red-500 flex items-center gap-1 ml-1 font-medium"><AlertTriangle size={12} />{errors.noticeStartDate}</p>}
                         </div>
-                        <div className="space-y-2.5 animate-in fade-in slide-in-from-top-2">
-                          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">Fim do Aviso</label>
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                          <label className="text-sm font-bold text-slate-900 dark:text-slate-300 ml-1">Fim do Aviso</label>
                           <div className="relative group">
-                            <div className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-slate-800 dark:group-focus-within:text-white transition-colors">
-                              <Calendar size={18} />
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 text-blue-500">
+                              <Pencil size={24} />
                             </div>
                             <input type="date" value={input.noticeEndDate || ''} onChange={(e) => handleInputChange('noticeEndDate', e.target.value)} className={getInputClass('noticeEndDate')} />
                           </div>
-                          {errors.noticeEndDate && <p className="text-xs text-red-500 flex items-center gap-1 ml-1 font-medium"><AlertTriangle size={12} />{errors.noticeEndDate}</p>}
                         </div>
                       </>
                     )}
+                    <div className="space-y-4">
+                      <label className="text-sm font-bold text-slate-900 dark:text-slate-300 ml-1">Dependentes para IRRF</label>
+                      <div className="flex items-center gap-4">
+                        <div className="relative flex-1 group">
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 text-blue-500">
+                            <Pencil size={24} />
+                          </div>
+                          <input type="number" min="0" value={input.dependents} onChange={(e) => handleInputChange('dependents', Number(e.target.value))} className={getInputClass('dependents')} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleInputChange('dependents', Math.max(0, input.dependents - 1))} className="w-10 h-10 rounded-full bg-[#0f172a] text-white flex items-center justify-center hover:opacity-90 transition-opacity">
+                            <span className="text-2xl font-bold">-</span>
+                          </button>
+                          <button onClick={() => handleInputChange('dependents', input.dependents + 1)} className="w-10 h-10 rounded-full bg-[#0f172a] text-white flex items-center justify-center hover:opacity-90 transition-opacity">
+                            <span className="text-2xl font-bold">+</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 <div className="w-full h-px bg-slate-100 dark:bg-white/5"></div>
 
                 {/* Section 3 */}
-                <div className="space-y-6">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-sm font-black">3</span>
+                <div className="space-y-8">
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                    <span className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm font-black">3</span>
                     Adicionais e Variáveis
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2.5">
-                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1 flex items-center gap-2">
-                        Média Valor Horas Extras (R$)
-                        <InfoTooltip text="Média mensal do valor recebido como horas extras nos últimos 12 meses." />
-                      </label>
-                      <div className="relative group">
-                        <div className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-slate-800 dark:group-focus-within:text-white transition-colors">
-                          <DollarSign size={18} />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div className="space-y-4">
+                      <label className="text-sm font-bold text-slate-900 dark:text-slate-300 ml-1">Média Valor Horas Extras (R$)</label>
+                      <div className="flex items-center gap-4">
+                        <div className="relative flex-1 group">
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 text-slate-300">
+                            <span className="text-3xl font-bold">$</span>
+                          </div>
+                          <div className="flex items-center">
+                            <input
+                              type="text"
+                              value={new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(input.additionalHours)}
+                              readOnly
+                              className={getInputClass('additionalHours') + " !pl-8 bg-transparent border-0 ring-0 focus:ring-0 cursor-default"}
+                            />
+                          </div>
                         </div>
-                        <input type="number" value={input.additionalHours} onChange={(e) => handleInputChange('additionalHours', Number(e.target.value))} className={getInputClass('additionalHours')} placeholder="0,00" />
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleInputChange('additionalHours', Math.max(0, input.additionalHours - 100))} className="w-10 h-10 rounded-full bg-[#0f172a] text-white flex items-center justify-center hover:opacity-90 transition-opacity">
+                            <span className="text-2xl font-bold">-</span>
+                          </button>
+                          <button onClick={() => handleInputChange('additionalHours', input.additionalHours + 100)} className="w-10 h-10 rounded-full bg-[#0f172a] text-white flex items-center justify-center hover:opacity-90 transition-opacity">
+                            <span className="text-2xl font-bold">+</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <div className="space-y-2.5">
-                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1 flex items-center gap-2">
-                        Saldo FGTS (p/ Multa)
-                        <InfoTooltip text="Informe o saldo total da conta do FGTS para cálculo da multa de 40%." />
-                      </label>
-                      <div className="relative group">
-                        <div className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-slate-800 dark:group-focus-within:text-white transition-colors">
-                          <DollarSign size={18} />
+
+                    <div className="space-y-4">
+                      <label className="text-sm font-bold text-slate-900 dark:text-slate-300 ml-1">Saldo FGTS (p/ Multa)</label>
+                      <div className="flex items-center gap-4">
+                        <div className="relative flex-1 group">
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 text-slate-300">
+                            <span className="text-3xl font-bold">$</span>
+                          </div>
+                          <div className="flex items-center">
+                            <input
+                              type="text"
+                              value={new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(input.fgtsBalance)}
+                              readOnly
+                              className={getInputClass('fgtsBalance') + " !pl-8 bg-transparent border-0 ring-0 focus:ring-0 cursor-default"}
+                            />
+                          </div>
                         </div>
-                        <input type="number" value={input.fgtsBalance} onChange={(e) => handleInputChange('fgtsBalance', Number(e.target.value))} className={getInputClass('fgtsBalance')} placeholder="0,00" />
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleInputChange('fgtsBalance', Math.max(0, input.fgtsBalance - 100))} className="w-10 h-10 rounded-full bg-[#0f172a] text-white flex items-center justify-center hover:opacity-90 transition-opacity">
+                            <span className="text-2xl font-bold">-</span>
+                          </button>
+                          <button onClick={() => handleInputChange('fgtsBalance', input.fgtsBalance + 100)} className="w-10 h-10 rounded-full bg-[#0f172a] text-white flex items-center justify-center hover:opacity-90 transition-opacity">
+                            <span className="text-2xl font-bold">+</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-                    <div className="space-y-2.5">
-                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">Férias Vencidas</label>
-                      <div className="flex gap-2 p-1 bg-slate-50 dark:bg-white/5 rounded-2xl border border-transparent">
-                        {[{ label: '0', value: 0 }, { label: '1', value: 1 }, { label: '2', value: 2 }].map((opt) => (
-                          <button key={opt.value} onClick={() => handleInputChange('vacationOverdue', opt.value)} className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-medium transition-all duration-200 ${input.vacationOverdue === opt.value ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md ring-1 ring-black/5 dark:ring-white/10' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5'}`}>
-                            {opt.label}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4">
+                    <div className="space-y-4">
+                      <label className="text-sm font-bold text-slate-900 dark:text-slate-300 ml-1">Férias Vencidas</label>
+                      <div className="flex p-1 bg-slate-100/50 dark:bg-white/5 rounded-2xl w-fit">
+                        {[0, 1, 2].map((num) => (
+                          <button
+                            key={num}
+                            onClick={() => handleInputChange('vacationOverdue', num)}
+                            className={`w-16 py-3 rounded-xl font-bold text-lg transition-all ${input.vacationOverdue === num ? 'bg-[#0f172a] text-white shadow-xl translate-y-[-2px]' : 'text-slate-400 hover:text-slate-600'}`}
+                          >
+                            {num}
                           </button>
                         ))}
                       </div>
                     </div>
 
-                    <label className={`flex items-center space-x-3 p-4 border rounded-2xl cursor-pointer transition-all h-[56px] mt-auto relative group select-none
-                        ${input.additionalDanger ? 'bg-slate-900 border-slate-900 dark:bg-white dark:border-white text-white dark:text-black' : 'bg-slate-50 dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10 text-slate-600 dark:text-slate-300'}
-                    `}>
-                      <input type="checkbox" checked={input.additionalDanger} onChange={(e) => handleInputChange('additionalDanger', e.target.checked)} className="hidden" />
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${input.additionalDanger ? 'border-white dark:border-black' : 'border-slate-400'}`}>
-                        {input.additionalDanger && <div className="w-2.5 h-2.5 rounded-full bg-white dark:bg-black" />}
-                      </div>
-                      <span className="text-sm font-semibold">Periculosidade (30%)</span>
-                    </label>
-
-                    <label className={`flex items-center space-x-3 p-4 border rounded-2xl cursor-pointer transition-all h-[56px] mt-auto relative group select-none
-                        ${input.additionalNight ? 'bg-slate-900 border-slate-900 dark:bg-white dark:border-white text-white dark:text-black' : 'bg-slate-50 dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10 text-slate-600 dark:text-slate-300'}
-                    `}>
-                      <input type="checkbox" checked={input.additionalNight} onChange={(e) => handleInputChange('additionalNight', e.target.checked)} className="hidden" />
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${input.additionalNight ? 'border-white dark:border-black' : 'border-slate-400'}`}>
-                        {input.additionalNight && <div className="w-2.5 h-2.5 rounded-full bg-white dark:bg-black" />}
-                      </div>
-                      <span className="text-sm font-semibold">Adic. Noturno (20%)</span>
-                    </label>
-
-                    <label className={`flex items-center space-x-3 p-4 border rounded-2xl cursor-pointer transition-all h-[56px] mt-auto relative group select-none
-                        ${input.applyFine477 ? 'bg-slate-900 border-slate-900 dark:bg-white dark:border-white text-white dark:text-black' : 'bg-slate-50 dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10 text-slate-600 dark:text-slate-300'}
-                    `}>
-                      <input type="checkbox" checked={input.applyFine477} onChange={(e) => handleInputChange('applyFine477', e.target.checked)} className="hidden" />
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${input.applyFine477 ? 'border-white dark:border-black' : 'border-slate-400'}`}>
-                        {input.applyFine477 && <div className="w-2.5 h-2.5 rounded-full bg-white dark:bg-black" />}
-                      </div>
-                      <span className="text-sm font-semibold">Multa Art. 477</span>
-                    </label>
+                    <div className="flex flex-wrap gap-4 items-end">
+                      {[
+                        { id: 'additionalDanger', label: 'Periculosidade (30%)' },
+                        { id: 'additionalNight', label: 'Adic. Noturno (20%)' },
+                        { id: 'applyFine477', label: 'Multa Art. 477' }
+                      ].map((opt) => {
+                        const active = input[opt.id as keyof CalculatorInput];
+                        return (
+                          <button
+                            key={opt.id}
+                            onClick={() => handleInputChange(opt.id as keyof CalculatorInput, !active)}
+                            className={`flex items-center gap-3 py-4 px-6 rounded-2xl font-bold text-sm transition-all ${active ? 'bg-[#0f172a] text-white shadow-xl' : 'bg-slate-50 dark:bg-white/5 text-slate-500 hover:bg-slate-100'}`}
+                          >
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${active ? 'border-white bg-white/20' : 'border-slate-300'}`}>
+                              {active && <div className="w-2.5 h-2.5 rounded-full bg-white" />}
+                            </div>
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex justify-end pt-8">
-                  <button onClick={handleCalculate} className="bg-slate-900 hover:bg-black dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-3 transform hover:-translate-y-1">
+                  <button onClick={handleCalculate} className="bg-green-500 hover:bg-green-600 text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-3 transform hover:-translate-y-1">
                     Calcular Agora <ArrowRight size={22} />
                   </button>
                 </div>
@@ -929,87 +1169,132 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
                   </div>
                   <div className="flex items-start gap-3 mt-2 p-4 bg-slate-50 dark:bg-white/5 rounded-2xl">
                     <input type="checkbox" required id="consent" checked={leadData.consent} onChange={e => setLeadData({ ...leadData, consent: e.target.checked })} className="mt-1 h-5 w-5 text-slate-900 border-slate-300 rounded focus:ring-slate-900 cursor-pointer" />
-                    <label htmlFor="consent" className="text-xs text-slate-500 dark:text-slate-400 cursor-pointer leading-relaxed">Concordo com o processamento dos meus dados conforme a <strong>Política de Privacidade</strong> e aceito receber o resultado.</label>
+                    <label htmlFor="consent" className="text-xs text-slate-500 dark:text-slate-400 cursor-pointer leading-relaxed">
+                      Concordo com o processamento dos meus dados conforme a <strong>Política de Privacidade</strong> e aceito receber o resultado bem como o contato do advogado especialista.
+                    </label>
                   </div>
-                  <button type="submit" className="w-full bg-slate-900 hover:bg-black dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 text-white font-bold py-4 rounded-2xl mt-4 shadow-lg transition-all hover:scale-[1.02]">Ver Resultado Completo</button>
+                  <button
+                    type="submit"
+                    disabled={!leadData.consent || isGeneratingPdf}
+                    className="w-full bg-slate-900 hover:bg-black dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 text-white font-bold py-4 rounded-2xl mt-4 shadow-lg transition-all hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  >
+                    {isGeneratingPdf ? 'Enviando...' : 'Ver Resultado Completo'}
+                  </button>
                   <button onClick={() => setStep('input')} type="button" className="w-full text-slate-400 text-sm py-2 hover:text-slate-600 dark:hover:text-slate-200 font-medium">Voltar e editar dados</button>
                 </form>
               </div>
             )}
 
-            {step === 'result' && result && (
-              <div className="animate-in fade-in duration-500">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
-                  <div>
-                    <h3 className="text-3xl font-bold text-slate-900 dark:text-white">Resultado do Cálculo</h3>
-                    <p className="text-slate-500 dark:text-slate-400 mt-1">Data Projetada: <span className="font-semibold text-slate-700 dark:text-slate-300">{formatDate(result.projectedEndDate)}</span></p>
+            {/* Hidden element: rendered off-screen, captured by html2canvas for PDF attachment */}
+            {result && (
+              <div id="calculation-result-hidden" style={{ position: 'absolute', left: '-9999px', top: 0, width: '700px', background: '#fff', padding: '16px' }}>
+                <div style={{ background: '#fffbeb', borderLeft: '4px solid #f59e0b', padding: '12px 16px', marginBottom: '16px' }}>
+                  <p style={{ color: '#92400e', fontSize: '12px', margin: 0 }}>
+                    <strong>Estimativa Educativa:</strong> O valor exato depende da convenção coletiva de São Paulo. Consulte um advogado.
+                  </p>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ background: '#f1f5f9' }}>
+                      <th style={{ padding: '8px', textAlign: 'left' }}>Verba</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>Ref.</th>
+                      <th style={{ padding: '8px', textAlign: 'right', color: '#16a34a' }}>Proventos</th>
+                      <th style={{ padding: '8px', textAlign: 'right', color: '#dc2626' }}>Descontos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.items.map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '6px 8px' }}>{item.description}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', color: '#94a3b8' }}>{item.reference}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', color: '#16a34a' }}>{item.type === 'earning' ? formatCurrency(item.value) : '-'}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', color: '#dc2626' }}>{item.type === 'deduction' ? formatCurrency(item.value) : '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#0f172a', color: '#fff' }}>
+                      <td colSpan={4} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 900, fontSize: '16px' }}>TOTAL LÍQUIDO: {formatCurrency(result.netTotal)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
+            {step === 'result' && (
+              <div className="max-w-lg mx-auto py-12 animate-in fade-in zoom-in duration-300">
+                {/* Success Header */}
+                <div className="text-center mb-10">
+                  <div className="w-24 h-24 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                    <CheckCircle className="h-12 w-12 text-green-600 dark:text-green-400" />
                   </div>
+                  <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-3">Parabéns! 🎉</h3>
+                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed text-base">
+                    Seu cálculo foi processado e o <strong className="text-slate-700 dark:text-slate-200">demonstrativo completo em PDF</strong> foi enviado para:
+                  </p>
+                  <p className="mt-2 text-indigo-600 dark:text-indigo-400 font-bold text-lg">{leadData.email}</p>
+                </div>
+
+                {/* Disclaimer */}
+                <div className="bg-amber-50 dark:bg-amber-900/10 border-l-4 border-amber-400 p-4 rounded-r-xl mb-8">
                   <div className="flex gap-3">
-                    <button onClick={handleGeneratePDF} disabled={isGeneratingPdf} className="px-8 py-3 bg-slate-900 dark:bg-white dark:text-slate-900 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-slate-800 dark:hover:bg-slate-200 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
-                      {isGeneratingPdf ? 'Gerando...' : <><Download size={20} /> Baixar PDF</>}
-                    </button>
+                    <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      <strong>Estimativa Educativa:</strong> O valor exato depende da convenção coletiva de São Paulo. Consulte um advogado.
+                    </p>
                   </div>
                 </div>
 
-                <div id="calculation-result" className="p-4 bg-white dark:bg-[#1A1D23] rounded-3xl">
-                  {/* DISCLAIMER */}
-                  <div className="mb-8 bg-amber-50 dark:bg-amber-900/10 border-l-4 border-amber-400 p-5 rounded-r-xl">
-                    <div className="flex gap-4">
-                      <div className="flex-shrink-0">
-                        <AlertTriangle className="h-6 w-6 text-amber-500" aria-hidden="true" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                          <strong>Estimativa Educativa:</strong> O valor exato depende da convenção coletiva de <strong>{cityName}</strong>. Consulte um advogado.
-                        </p>
-                      </div>
-                    </div>
+                {/* Lawyer contact card */}
+                {companyProfile.name && (
+                  <div className="bg-slate-50 dark:bg-white/5 rounded-2xl p-6 mb-6 space-y-3">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Fale com o Especialista</p>
+                    <p className="font-bold text-slate-900 dark:text-white text-base">{companyProfile.name}</p>
+                    {companyProfile.address?.city && (
+                      <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                        <MapPin size={14} />{companyProfile.address.city}{companyProfile.address.state ? ` - ${companyProfile.address.state}` : ''}
+                      </p>
+                    )}
+                    {companyProfile.phone && (
+                      <p className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <Phone size={14} />
+                        <a href={`tel:${companyProfile.phone.replace(/\D/g, '')}`} className="hover:underline">{companyProfile.phone}</a>
+                      </p>
+                    )}
+                    {companyProfile.email && (
+                      <p className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <span style={{ fontSize: 14 }}>✉</span>
+                        <a href={`mailto:${companyProfile.email}`} className="hover:underline">{companyProfile.email}</a>
+                      </p>
+                    )}
+                    {companyProfile.website && (
+                      <p className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <Globe size={14} />
+                        <a href={companyProfile.website} target="_blank" rel="noopener noreferrer" className="hover:underline">{companyProfile.website}</a>
+                      </p>
+                    )}
                   </div>
+                )}
 
-                  <div className="overflow-hidden border border-slate-100 dark:border-white/5 rounded-2xl mb-8">
-                    <table className="w-full text-sm text-left">
-                      <thead className="bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
-                        <tr>
-                          <th className="px-6 py-4">Verba</th>
-                          <th className="px-6 py-4">Ref.</th>
-                          <th className="px-6 py-4 text-right">Proventos</th>
-                          <th className="px-6 py-4 text-right">Descontos</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                        {result.items.map((item, idx) => (
-                          <tr key={idx} className="bg-white dark:bg-[#1A1D23] hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                            <td className="px-6 py-4">
-                              <span className="font-semibold text-slate-900 dark:text-white block">{item.description}</span>
-                              <span className="text-xs text-slate-400">{item.group}</span>
-                            </td>
-                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{item.reference}</td>
-                            <td className="px-6 py-4 text-right font-mono font-medium text-emerald-600 dark:text-emerald-400">{item.type === 'earning' ? formatCurrency(item.value) : '-'}</td>
-                            <td className="px-6 py-4 text-right font-mono font-medium text-red-500 dark:text-red-400">{item.type === 'deduction' ? formatCurrency(item.value) : '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="bg-slate-50 dark:bg-white/5 font-bold border-t border-slate-200 dark:border-white/10">
-                        <tr>
-                          <td colSpan={2} className="px-6 py-5 text-right text-slate-600 dark:text-slate-300">Subtotais</td>
-                          <td className="px-6 py-5 text-right text-emerald-600 dark:text-emerald-400">{formatCurrency(result.totalEarnings)}</td>
-                          <td className="px-6 py-5 text-right text-red-500 dark:text-red-400">{formatCurrency(result.totalDeductions)}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
+                {/* WhatsApp button */}
+                {activePhone && (
+                  <a
+                    href={`https://wa.me/55${activePhone.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMessage)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-3 bg-[#25d366] hover:bg-[#20b858] text-white font-bold py-4 rounded-2xl transition-all hover:scale-[1.02] shadow-lg mb-4"
+                  >
+                    <MessageCircle size={22} />
+                    Falar com Advogado no WhatsApp
+                  </a>
+                )}
 
-                  <div className="bg-slate-900 dark:bg-black text-white rounded-[24px] p-8 md:p-10 shadow-xl flex flex-col items-center justify-center text-center relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-white/5 to-transparent pointer-events-none"></div>
-                    <p className="text-slate-400 uppercase tracking-widest text-xs font-bold mb-3">Valor Líquido a Receber</p>
-                    <div className="text-5xl md:text-6xl font-black text-white mb-4 tracking-tight">{formatCurrency(result.netTotal)}</div>
-                    <p className="text-slate-400 text-sm max-w-lg bg-white/10 px-4 py-1.5 rounded-full">* Pagamento em até 10 dias corridos.</p>
-                  </div>
-                </div>
-
-                <div className="text-center mt-10">
-                  <button onClick={() => { setStep('input'); setResult(null); }} className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white underline font-semibold transition-colors">Realizar Novo Cálculo</button>
-                </div>
+                {/* New calculation */}
+                <button
+                  onClick={() => { setStep('input'); setResult(null); setLeadData({ name: '', email: '', phone: '', consent: false }); }}
+                  className="w-full py-3 rounded-2xl border-2 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 font-semibold hover:bg-slate-50 dark:hover:bg-white/5 transition-all"
+                >
+                  Realizar Novo Cálculo
+                </button>
               </div>
             )}
           </div>
@@ -1024,7 +1309,8 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
       {/* --- TAB: SETTINGS --- */}
       {activeTab === 'settings' && (
         <div className="bg-white dark:bg-[#1A1D23] rounded-[40px] shadow-[0_4px_30px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-white/5 overflow-hidden w-full relative z-10 animate-in fade-in slide-in-from-bottom-2">
-          <div className="bg-slate-900 dark:bg-black p-8 md:p-10 text-white">
+          {/* Settings Header */}
+          <div className="bg-slate-900 dark:bg-black p-8 md:p-10 text-white flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm">
                 <Settings className="h-6 w-6 text-white" />
@@ -1036,343 +1322,451 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
             </div>
           </div>
 
-          <div className="p-8 md:p-12 space-y-8">
-            {/* Status Section */}
-            <div className="bg-slate-50 dark:bg-white/5 p-6 rounded-[24px] border border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Globe size={20} className="text-indigo-500" /> Visibilidade
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  Defina se sua calculadora está acessível publicamente.
-                </p>
-              </div>
-              <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm">
-                <span className={`text-sm font-bold px-3 ${isPublished ? 'text-green-500' : 'text-slate-400'}`}>
-                  {isPublished ? 'Publicado' : 'Rascunho'}
-                </span>
-                <button
-                  onClick={() => setIsPublished(!isPublished)}
-                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${isPublished ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
-                >
-                  <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${isPublished ? 'translate-x-7' : 'translate-x-1'}`} />
-                </button>
-                <button
-                  onClick={handleSavePublish}
-                  disabled={isSavingConfig}
-                  className="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
-                >
-                  <Save size={16} /> {isSavingConfig ? 'Salvando...' : 'Salvar Configurações'}
-                </button>
+          <div className="p-6 md:p-10 space-y-8">
+
+            {/* ── 1. VISIBILIDADE ── */}
+            <div className="bg-slate-50 dark:bg-white/5 p-6 rounded-[24px] border border-slate-100 dark:border-white/5">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Globe size={20} className="text-indigo-500" /> Visibilidade
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Defina se sua calculadora está acessível publicamente.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <span className={`text-sm font-bold ${isPublished ? 'text-green-500' : 'text-slate-400'}`}>
+                    {isPublished ? 'Publicado' : 'Rascunho'}
+                  </span>
+                  <button
+                    onClick={() => setIsPublished(!isPublished)}
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${isPublished ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                  >
+                    <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform shadow ${isPublished ? 'translate-x-7' : 'translate-x-1'}`} />
+                  </button>
+                  <button
+                    onClick={handleSavePublish}
+                    disabled={isSavingConfig}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
+                  >
+                    <Save size={16} /> {isSavingConfig ? 'Salvando...' : 'Salvar Configurações'}
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* ── 2. LINK PÚBLICO ── */}
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Link Público da Página</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={publicUrl}
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-xl text-slate-600 dark:text-slate-300 outline-none text-sm"
+                />
+                <button
+                  onClick={() => handleCopy(publicUrl)}
+                  className="p-3 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors flex-shrink-0"
+                  title="Copiar Link"
+                >
+                  {copied ? <Check size={20} className="text-green-500" /> : <Copy size={20} />}
+                </button>
+                <a
+                  href={publicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors flex-shrink-0"
+                  title="Abrir página"
+                >
+                  <ExternalLink size={20} />
+                </a>
+              </div>
+              <p className="text-xs text-slate-400 mt-1.5">Envie este link diretamente para seus clientes.</p>
+            </div>
 
-              {/* Left Column */}
-              <div className="space-y-8">
-                {/* Links de Acesso */}
-                <div className="space-y-6">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <LinkIcon size={24} className="text-indigo-500" />
-                    Links de Acesso
-                  </h3>
-
-                  <div className="bg-white dark:bg-slate-800 p-5 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm space-y-4">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Link Público da Página</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          readOnly
-                          value={publicUrl}
-                          className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-slate-600 dark:text-slate-300 outline-none"
-                        />
-                        <button
-                          onClick={() => handleCopy(publicUrl)}
-                          className="p-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
-                          title="Copiar Link"
-                        >
-                          <Copy size={20} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Código Iframe (Site)</label>
-                      <div className="bg-slate-900 rounded-xl p-4 relative group">
-                        <code className="text-indigo-300 font-mono text-xs break-all block pr-8">
-                          {generateIframeCode()}
-                        </code>
-                        <button
-                          onClick={() => handleCopy(generateIframeCode())}
-                          className="absolute top-2 right-2 p-1.5 bg-white/10 hover:bg-white/20 rounded text-white transition-colors"
-                        >
-                          {copied ? <Check size={14} /> : <Copy size={14} />}
-                        </button>
-                      </div>
+            {/* ── 3. APARÊNCIA DA CALCULADORA ── */}
+            <div className="bg-white dark:bg-[#1E2128] rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 dark:border-white/5">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Palette size={18} className="text-indigo-500" />
+                  Aparência da Calculadora
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Personalize o visual para combinar com a identidade do seu escritório</p>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* Título */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Título da Calculadora</label>
+                  <div className="relative">
+                    <Pencil size={16} className="absolute left-4 top-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={displayTitle}
+                      onChange={(e) => onUpdateFirmName && onUpdateFirmName(e.target.value)}
+                      placeholder="Ex: Minha Empresa"
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none dark:text-white text-sm transition-all"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">Este título substitui o nome padrão exibido no topo da calculadora.</p>
+                </div>
+                {/* Cores lado a lado */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Cor de Fundo</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={headerBgColor}
+                        onChange={(e) => setHeaderBgColor(e.target.value)}
+                        className="w-12 h-12 p-0.5 rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden cursor-pointer shadow-sm bg-transparent flex-shrink-0"
+                      />
+                      <input
+                        type="text"
+                        value={headerBgColor}
+                        onChange={(e) => setHeaderBgColor(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm outline-none dark:text-white font-mono"
+                      />
                     </div>
                   </div>
-                </div>
-
-                {/* Analytics Section */}
-                <div className="space-y-6">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <BarChart size={24} className="text-blue-500" />
-                    Rastreamento
-                  </h3>
-
-                  <div className="space-y-4">
-                    <div className="bg-white dark:bg-slate-800 p-5 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm">
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Google Analytics (G-XXXX)</label>
-                      <div className="relative">
-                        <Code size={18} className="absolute left-4 top-3.5 text-slate-400" />
-                        <input
-                          type="text"
-                          value={gaCode}
-                          onChange={(e) => setGaCode(e.target.value)}
-                          placeholder="G-1234567890"
-                          className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-slate-800 p-5 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm">
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Meta Pixel ID</label>
-                      <div className="relative">
-                        <Code size={18} className="absolute left-4 top-3.5 text-slate-400" />
-                        <input
-                          type="text"
-                          value={adsId}
-                          onChange={(e) => setAdsId(e.target.value)}
-                          placeholder="123456789012345"
-                          className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Google Ads Conversion Section */}
-                    <div className="bg-white dark:bg-slate-800 p-5 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm space-y-4">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Target size={18} className="text-red-500" />
-                        Conversão Google Ads
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Conversion ID</label>
-                          <input
-                            type="text"
-                            value={googleAdsId}
-                            onChange={(e) => setGoogleAdsId(e.target.value)}
-                            placeholder="AW-123456789"
-                            className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border-none rounded-xl outline-none dark:text-white focus:ring-2 focus:ring-blue-500 transition-all"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Conversion Label</label>
-                          <input
-                            type="text"
-                            value={googleAdsLabel}
-                            onChange={(e) => setGoogleAdsLabel(e.target.value)}
-                            placeholder="AbC-123_xYz"
-                            className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border-none rounded-xl outline-none dark:text-white focus:ring-2 focus:ring-blue-500 transition-all"
-                          />
-                        </div>
-                      </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Cor da Fonte</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={headerFontColor}
+                        onChange={(e) => setHeaderFontColor(e.target.value)}
+                        className="w-12 h-12 p-0.5 rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden cursor-pointer shadow-sm bg-transparent flex-shrink-0"
+                      />
+                      <input
+                        type="text"
+                        value={headerFontColor}
+                        onChange={(e) => setHeaderFontColor(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm outline-none dark:text-white font-mono"
+                      />
                     </div>
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Right Column (Widget Config) */}
-              <div className="space-y-6">
-
-                {/* WhatsApp Message Config - NEW SECTION */}
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm space-y-6">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <MessageCircle size={24} className="text-green-500" />
-                    WhatsApp & Contato
-                  </h3>
-
+            {/* ── 4. WHATSAPP & CONTATO ── */}
+            <div className="bg-white dark:bg-[#1E2128] rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 dark:border-white/5">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <MessageCircle size={18} className="text-green-500" />
+                  WhatsApp & Contato
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Configure o botão de contato exibido após o cálculo</p>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Número de Destino</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Número de Destino</label>
                     <input
                       type="tel"
                       value={customPhoneNumber}
                       onChange={(e) => setCustomPhoneNumber(e.target.value)}
-                      placeholder={companyProfile.phone || "5511999999999"}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-green-500 outline-none dark:text-white transition-all"
+                      placeholder={companyProfile.phone || "11999763164"}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-green-500 outline-none dark:text-white text-sm transition-all"
                     />
-                    <p className="text-xs text-slate-400 mt-1">Deixe em branco para usar o telefone do perfil da empresa.</p>
+                    <p className="text-xs text-slate-400 mt-1">Deixe em branco para usar o número do perfil da empresa</p>
                   </div>
-
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Mensagem Inicial</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Mensagem Inicial</label>
                     <textarea
                       value={whatsappMessage}
                       onChange={(e) => setWhatsappMessage(e.target.value)}
                       rows={3}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-green-500 outline-none dark:text-white transition-all resize-none"
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-green-500 outline-none dark:text-white text-sm transition-all resize-none"
                     />
-                    <p className="text-xs text-slate-400 mt-1">Texto pré-preenchido quando o cliente clicar no botão.</p>
+                    <p className="text-xs text-slate-400 mt-1">Texto pré-preenchido quando o cliente clicar no botão</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 5. RASTREAMENTO & ANALYTICS ── */}
+            <div className="bg-white dark:bg-[#1E2128] rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <BarChart size={18} className="text-blue-500" />
+                    Rastreamento & Analytics
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Acompanhe conversões e comportamento dos usuários na calculadora</p>
+                </div>
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1 rounded-full border border-amber-100 dark:border-amber-800/30">Opcional</span>
+              </div>
+              <div className="p-6 space-y-5">
+                {/* GA + Meta Pixel em grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <span className="text-slate-700 dark:text-slate-300 font-bold text-xs bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded">G·</span>
+                      Google Analytics
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={gaCode}
+                        onChange={(e) => setGaCode(e.target.value)}
+                        placeholder="G-1234567890"
+                        className="w-full pl-4 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm transition-all font-mono"
+                      />
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">ID de Medição do G4A</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <span className="text-slate-700 dark:text-slate-300 font-bold text-xs bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded">Fb</span>
+                      Meta Pixel ID
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={adsId}
+                        onChange={(e) => setAdsId(e.target.value)}
+                        placeholder="123456789012345"
+                        className="w-full pl-4 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none dark:text-white text-sm transition-all font-mono"
+                      />
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">ID do Pixel do Facebook/Instagram Ads</p>
                   </div>
                 </div>
 
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2 pt-4">
-                  <Palette size={24} className="text-purple-500" />
+                {/* Google Ads Conversion */}
+                <div className="pt-4 border-t border-slate-100 dark:border-white/5">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Target size={14} className="text-slate-500" /> Google Ads · Conversão
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2 flex items-center gap-1.5">
+                        <span className="text-xs bg-slate-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300 font-mono">AW·</span>
+                        Conversion ID
+                      </label>
+                      <input
+                        type="text"
+                        value={googleAdsId}
+                        onChange={(e) => setGoogleAdsId(e.target.value)}
+                        placeholder="AW-123456789"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl outline-none dark:text-white focus:ring-2 focus:ring-blue-500 text-sm transition-all font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2 flex items-center gap-1.5">
+                        <span className="text-xs bg-slate-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300 font-mono">#</span>
+                        Conversion Label
+                      </label>
+                      <input
+                        type="text"
+                        value={googleAdsLabel}
+                        onChange={(e) => setGoogleAdsLabel(e.target.value)}
+                        placeholder="AbC-123_xYz"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl outline-none dark:text-white focus:ring-2 focus:ring-blue-500 text-sm transition-all font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 6. WIDGET FLUTUANTE ── */}
+            <div className="bg-white dark:bg-[#1E2128] rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 dark:border-white/5">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <MousePointerClick size={18} className="text-purple-500" />
                   Widget Flutuante
                 </h3>
-
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm space-y-6">
-                  {/* Color Picker */}
+                <p className="text-xs text-slate-400 mt-0.5">Botão fixo que aparece em qualquer página do seu site</p>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* Cor Principal + Prévia & Posição lado a lado */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Cor Principal</label>
-                    <div className="flex flex-wrap gap-3">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Cor Principal</label>
+                    <div className="flex flex-wrap items-center gap-2">
                       {PRESET_COLORS.map(color => (
                         <button
                           key={color}
                           onClick={() => setWidgetColor(color)}
-                          className={`w-10 h-10 rounded-full transition-transform hover:scale-110 shadow-sm ${widgetColor === color ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : ''}`}
+                          className={`w-9 h-9 rounded-full transition-transform hover:scale-110 shadow-sm flex-shrink-0 ${widgetColor === color ? 'ring-2 ring-offset-2 ring-slate-400 dark:ring-slate-500 scale-110' : ''}`}
                           style={{ backgroundColor: color }}
+                          title={color}
                         />
                       ))}
                       <input
                         type="color"
                         value={widgetColor}
                         onChange={(e) => setWidgetColor(e.target.value)}
-                        className="w-10 h-10 p-0 rounded-full border-0 overflow-hidden cursor-pointer shadow-sm"
+                        className="w-9 h-9 p-0 rounded-full border-0 overflow-hidden cursor-pointer shadow-sm flex-shrink-0"
+                        title="Cor personalizada"
                       />
                     </div>
                   </div>
-
-                  {/* Text Input */}
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Texto do Botão</label>
-                    <input
-                      type="text"
-                      value={widgetText}
-                      onChange={(e) => setWidgetText(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-purple-500 outline-none dark:text-white transition-all"
-                    />
-                  </div>
-
-                  {/* Action Config */}
-                  <div className="pt-2 space-y-3 border-t border-slate-100 dark:border-white/5">
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                      <MousePointerClick size={16} /> Ação do Clique
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => setWidgetAction('modal')}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${widgetAction === 'modal' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 ring-1 ring-purple-500' : 'bg-slate-50 dark:bg-slate-900 text-slate-500 hover:bg-slate-100'}`}
-                      >
-                        Abrir Calculadora
-                      </button>
-                      <button
-                        onClick={() => setWidgetAction('link')}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${widgetAction === 'link' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 ring-1 ring-purple-500' : 'bg-slate-50 dark:bg-slate-900 text-slate-500 hover:bg-slate-100'}`}
-                      >
-                        Redirecionar
-                      </button>
-                    </div>
-
-                    {widgetAction === 'link' && (
-                      <div className="animate-in fade-in slide-in-from-top-1 pt-2">
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">URL de Destino</label>
-                        <input
-                          type="url"
-                          placeholder="https://..."
-                          value={targetUrl}
-                          onChange={(e) => setTargetUrl(e.target.value)}
-                          className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:border-purple-500"
-                        />
-                        <p className="text-xs text-slate-400 mt-1">Deixe em branco para usar o link da calculadora.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Widget Preview (Updated with Interactive Corners) */}
-                  <div className="pt-4 border-t border-slate-100 dark:border-white/5">
-                    <p className="text-xs font-bold text-slate-400 uppercase mb-4">Prévia & Posição</p>
-                    <div className="bg-slate-100 dark:bg-slate-900/50 rounded-2xl h-48 relative border border-dashed border-slate-300 dark:border-slate-700 shadow-inner overflow-hidden">
-
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Prévia & Posição</label>
+                    <div className="bg-slate-100 dark:bg-slate-900/50 rounded-2xl h-36 relative border border-dashed border-slate-300 dark:border-slate-700 shadow-inner overflow-hidden">
                       {/* Browser Mock Header */}
-                      <div className="absolute top-0 left-0 w-full h-8 bg-slate-200 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 flex items-center px-3 gap-1.5 z-10">
-                        <div className="w-2.5 h-2.5 rounded-full bg-red-400"></div>
-                        <div className="w-2.5 h-2.5 rounded-full bg-yellow-400"></div>
-                        <div className="w-2.5 h-2.5 rounded-full bg-green-400"></div>
-                        <div className="ml-2 text-[10px] text-slate-500 font-medium">site-do-cliente.com.br</div>
+                      <div className="absolute top-0 left-0 w-full h-7 bg-slate-200 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 flex items-center px-2.5 gap-1.5 z-10">
+                        <div className="w-2 h-2 rounded-full bg-red-400"></div>
+                        <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
+                        <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                        <div className="ml-2 text-[9px] text-slate-500 font-medium">site-do-cliente.com.br</div>
                       </div>
-
                       {/* Corner Position Selectors */}
-                      {/* Top Left */}
-                      <button
-                        onClick={() => setWidgetPosition('top-left')}
-                        title="Posicionar Acima à Esquerda"
-                        className={`absolute top-12 left-4 w-8 h-8 border-t-2 border-l-2 rounded-tl-lg transition-colors z-20 hover:scale-110
-                                            ${widgetPosition === 'top-left' ? 'border-purple-600 dark:border-purple-400 scale-110' : 'border-slate-300 dark:border-slate-600 hover:border-slate-400'}`}
+                      <button onClick={() => setWidgetPosition('top-left')} title="Acima à Esquerda"
+                        className={`absolute top-10 left-3 w-7 h-7 border-t-2 border-l-2 rounded-tl-lg transition-colors z-20 hover:scale-110 ${widgetPosition === 'top-left' ? 'border-purple-600 dark:border-purple-400 scale-110' : 'border-slate-300 dark:border-slate-600'}`}
                       />
-                      {/* Top Right */}
-                      <button
-                        onClick={() => setWidgetPosition('top-right')}
-                        title="Posicionar Acima à Direita"
-                        className={`absolute top-12 right-4 w-8 h-8 border-t-2 border-r-2 rounded-tr-lg transition-colors z-20 hover:scale-110
-                                            ${widgetPosition === 'top-right' ? 'border-purple-600 dark:border-purple-400 scale-110' : 'border-slate-300 dark:border-slate-600 hover:border-slate-400'}`}
+                      <button onClick={() => setWidgetPosition('top-right')} title="Acima à Direita"
+                        className={`absolute top-10 right-3 w-7 h-7 border-t-2 border-r-2 rounded-tr-lg transition-colors z-20 hover:scale-110 ${widgetPosition === 'top-right' ? 'border-purple-600 dark:border-purple-400 scale-110' : 'border-slate-300 dark:border-slate-600'}`}
                       />
-                      {/* Bottom Left */}
-                      <button
-                        onClick={() => setWidgetPosition('bottom-left')}
-                        title="Posicionar Abaixo à Esquerda"
-                        className={`absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 rounded-bl-lg transition-colors z-20 hover:scale-110
-                                            ${widgetPosition === 'bottom-left' ? 'border-purple-600 dark:border-purple-400 scale-110' : 'border-slate-300 dark:border-slate-600 hover:border-slate-400'}`}
+                      <button onClick={() => setWidgetPosition('bottom-left')} title="Abaixo à Esquerda"
+                        className={`absolute bottom-3 left-3 w-7 h-7 border-b-2 border-l-2 rounded-bl-lg transition-colors z-20 hover:scale-110 ${widgetPosition === 'bottom-left' ? 'border-purple-600 dark:border-purple-400 scale-110' : 'border-slate-300 dark:border-slate-600'}`}
                       />
-                      {/* Bottom Right */}
-                      <button
-                        onClick={() => setWidgetPosition('bottom-right')}
-                        title="Posicionar Abaixo à Direita"
-                        className={`absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 rounded-br-lg transition-colors z-20 hover:scale-110
-                                            ${widgetPosition === 'bottom-right' ? 'border-purple-600 dark:border-purple-400 scale-110' : 'border-slate-300 dark:border-slate-600 hover:border-slate-400'}`}
+                      <button onClick={() => setWidgetPosition('bottom-right')} title="Abaixo à Direita"
+                        className={`absolute bottom-3 right-3 w-7 h-7 border-b-2 border-r-2 rounded-br-lg transition-colors z-20 hover:scale-110 ${widgetPosition === 'bottom-right' ? 'border-purple-600 dark:border-purple-400 scale-110' : 'border-slate-300 dark:border-slate-600'}`}
                       />
-
-                      {/* The Widget Button */}
+                      {/* Widget Preview Button */}
                       <div
-                        className="absolute px-6 py-3 rounded-full text-white font-bold shadow-lg flex items-center gap-2 cursor-default transition-all duration-300 z-30"
-                        style={{
-                          backgroundColor: widgetColor,
-                          color: widgetTextColor,
-                          ...getPreviewStyle()
-                        }}
+                        className="absolute px-4 py-2 rounded-full font-bold shadow-lg flex items-center gap-1.5 cursor-default transition-all duration-300 z-30 text-xs"
+                        style={{ backgroundColor: widgetColor, color: widgetTextColor, ...getPreviewStyle() }}
                       >
-                        <Calculator size={18} />
+                        <Calculator size={14} />
                         {widgetText}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Widget Script */}
-                <div className="bg-slate-900 dark:bg-black p-6 rounded-[24px] text-white">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold flex items-center gap-2"><Code size={20} className="text-green-400" /> Script do Widget</h3>
-                    <button onClick={() => handleCopy(generateWidgetCode())} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
-                      {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copiado' : 'Copiar'}
+                {/* Texto do Botão */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Texto do Botão</label>
+                  <input
+                    type="text"
+                    value={widgetText}
+                    onChange={(e) => setWidgetText(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-purple-500 outline-none dark:text-white text-sm transition-all"
+                  />
+                </div>
+
+                {/* Ação ao Clicar */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Ação ao Clicar</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setWidgetAction('modal')}
+                      className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 justify-center ${widgetAction === 'modal' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100'}`}
+                    >
+                      <Layout size={16} /> Abrir Calculadora
+                    </button>
+                    <button
+                      onClick={() => setWidgetAction('link')}
+                      className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 justify-center ${widgetAction === 'link' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100'}`}
+                    >
+                      <ExternalLink size={16} /> Redirecionar
                     </button>
                   </div>
-                  <code className="block font-mono text-xs text-slate-300 bg-black/30 p-4 rounded-xl overflow-x-auto whitespace-pre-wrap">
-                    {generateWidgetCode()}
-                  </code>
+                  {widgetAction === 'link' && (
+                    <div className="mt-3 animate-in fade-in slide-in-from-top-1">
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">URL de Destino</label>
+                      <input
+                        type="url"
+                        placeholder="https://..."
+                        value={targetUrl}
+                        onChange={(e) => setTargetUrl(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:border-purple-500 dark:text-white"
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Deixe em branco para usar o link da calculadora.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
+
+            {/* ── 7. SCRIPT DO WIDGET ── */}
+            <div className="bg-slate-900 dark:bg-black rounded-[24px] overflow-hidden">
+              <div className="flex justify-between items-center px-6 py-4 border-b border-white/5">
+                <h3 className="font-bold text-white flex items-center gap-2 text-sm">
+                  <Code size={18} className="text-green-400" /> Script do Widget
+                </h3>
+                <button
+                  onClick={() => handleCopy(generateWidgetCode())}
+                  className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                  {copied ? 'Copiado!' : 'Copiar Script'}
+                </button>
+              </div>
+              <div className="p-6">
+                <code className="block font-mono text-xs text-slate-300 bg-black/40 p-4 rounded-xl overflow-x-auto whitespace-pre-wrap leading-relaxed">
+                  {generateWidgetCode()}
+                </code>
+                <p className="text-xs text-slate-500 mt-3">Cole este código uma só vez em todas as páginas onde o widget deve aparecer.</p>
+              </div>
+            </div>
+
+            {/* ── 8. LINKS & EMBED ── */}
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+                <LinkIcon size={18} className="text-indigo-500" />
+                Links & Embed
+              </h3>
+              <p className="text-xs text-slate-400 mb-4">Compartilhe ou incorpore sua calculadora em qualquer site</p>
+              <div className="bg-slate-900 dark:bg-black rounded-[24px] overflow-hidden">
+                <div className="flex justify-between items-center px-6 py-4 border-b border-white/5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Código IFrame</span>
+                    <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded font-mono">EMBED</span>
+                  </div>
+                  <button
+                    onClick={() => handleCopy(generateIframeCode())}
+                    className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                  >
+                    {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                    Copiar
+                  </button>
+                </div>
+                <div className="p-6">
+                  <code className="block font-mono text-xs text-indigo-300 bg-black/40 p-4 rounded-xl overflow-x-auto whitespace-pre-wrap leading-relaxed break-all">
+                    {generateIframeCode()}
+                  </code>
+                  <p className="text-xs text-slate-500 mt-3">Cole este código no seu site para exibir a calculadora embutida.</p>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
 
       {/* Floating WhatsApp Button (Global) */}
       {activePhone && (
-        <a href={`https://wa.me/55${activePhone.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMessage)}`} target="_blank" rel="noreferrer" className="fixed bottom-8 right-8 z-50 bg-[#25D366] hover:bg-[#128C7E] text-white p-4 rounded-full shadow-[0_8px_30px_rgba(37,211,102,0.4)] transition-all duration-300 hover:scale-110 group" title="Falar com Especialista" aria-label="Falar no WhatsApp">
+        <a
+          href={`https://wa.me/55${activePhone.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMessage)}`}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => triggerConversions()}
+          className="fixed bottom-8 right-8 z-50 bg-[#25D366] hover:bg-[#128C7E] text-white p-4 rounded-full shadow-[0_8px_30px_rgba(37,211,102,0.4)] transition-all duration-300 hover:scale-110 group animate-whatsapp-pulse"
+          title="Falar com Especialista"
+          aria-label="Falar no WhatsApp"
+        >
           <MessageCircle size={28} className="text-white" />
           <span className="absolute right-16 top-1/2 -translate-y-1/2 bg-white text-slate-900 text-xs font-bold px-4 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-lg pointer-events-none">Falar com Advogado</span>
+
+          <style dangerouslySetInnerHTML={{
+            __html: `
+            @keyframes whatsapp-pulse {
+              0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7); }
+              70% { box-shadow: 0 0 0 15px rgba(37, 211, 102, 0); }
+              100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
+            }
+            .animate-whatsapp-pulse {
+              animation: whatsapp-pulse 2s infinite;
+            }
+          `}} />
         </a>
       )}
     </div>

@@ -32,8 +32,8 @@ export async function getAllUsers(req: AuthenticatedRequest, res: Response): Pro
 export async function createUser(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { name, email, password, phone, firmName } = req.body;
 
-    if (!name || !email || !password) {
-        res.status(400).json({ success: false, error: 'Nome, email e senha são obrigatórios' });
+    if (!name || !email) {
+        res.status(400).json({ success: false, error: 'Nome e email são obrigatórios' });
         return;
     }
 
@@ -44,8 +44,8 @@ export async function createUser(req: AuthenticatedRequest, res: Response): Prom
         return;
     }
 
-    // OWASP: Password strength validation
-    if (password.length < 6) {
+    // OWASP: Password strength validation (only if provided)
+    if (password && password.length < 6) {
         res.status(400).json({ success: false, error: 'Senha deve ter pelo menos 6 caracteres' });
         return;
     }
@@ -60,7 +60,8 @@ export async function createUser(req: AuthenticatedRequest, res: Response): Prom
         }
 
         // OWASP: BCrypt with cost factor 12
-        const passwordHash = await bcrypt.hash(password, 12);
+        // If no password provided, use a random one as placeholder (user will set via invite)
+        const passwordHash = await bcrypt.hash(password || crypto.randomBytes(32).toString('hex'), 12);
         const userId = uuidv4();
         const companyId = uuidv4();
         const now = new Date().toISOString();
@@ -212,6 +213,65 @@ export async function updateUserPlan(req: AuthenticatedRequest, res: Response): 
         res.json({ success: true, data: { id, plan } });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Erro ao atualizar plano do usuário' });
+    }
+}
+
+export async function updateUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { id } = req.params;
+    const { name, email, phone, firmName } = req.body;
+
+    if (!name || !email) {
+        res.status(400).json({ success: false, error: 'Nome e email são obrigatórios' });
+        return;
+    }
+
+    try {
+        const db = await getDatabase();
+        const user = await db.get<User>('SELECT * FROM users WHERE id = ?', id);
+        if (!user) {
+            res.status(404).json({ success: false, error: 'Usuário não encontrado' });
+            return;
+        }
+
+        const now = new Date().toISOString();
+        await db.run(
+            'UPDATE users SET name = ?, email = ?, phone = ?, firm_name = ?, updated_at = ? WHERE id = ?',
+            [name.trim(), email.toLowerCase().trim(), phone || null, firmName || null, now, id]
+        );
+
+        const updated = await db.get<User>('SELECT * FROM users WHERE id = ?', id);
+        const { password_hash: _, ...userPublic } = updated!;
+        res.json({ success: true, data: userPublic });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Erro ao atualizar usuário' });
+    }
+}
+
+export async function resendInvite(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { id } = req.params;
+
+    try {
+        const db = await getDatabase();
+        const user = await db.get<User>('SELECT * FROM users WHERE id = ?', id);
+        if (!user) {
+            res.status(404).json({ success: false, error: 'Usuário não encontrado' });
+            return;
+        }
+
+        const confirmationToken = crypto.randomBytes(32).toString('hex');
+        const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24h
+        const now = new Date().toISOString();
+
+        await db.run(
+            'UPDATE users SET confirmation_token = ?, token_expires_at = ?, updated_at = ? WHERE id = ?',
+            [confirmationToken, tokenExpires, now, id]
+        );
+
+        await sendWelcomeInviteEmail(user.email, user.name, confirmationToken);
+
+        res.json({ success: true, message: 'Convite reenviado com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Erro ao reenviar convite' });
     }
 }
 

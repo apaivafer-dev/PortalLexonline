@@ -44,9 +44,9 @@ export const ResetPasswordPage = ({ token, onResetSuccess }: ResetPasswordPagePr
                             <CheckCircle2 size={40} className="text-green-600" />
                         </div>
                     </div>
-                    <h2 className="text-2xl font-bold dark:text-white">Senha Redefinida!</h2>
+                    <h2 className="text-2xl font-bold dark:text-white">Sucesso!</h2>
                     <p className="text-slate-500 dark:text-slate-400">
-                        Sua senha foi alterada com sucesso. Agora você pode fazer login com as novas credenciais.
+                        Sua senha foi configurada com sucesso. Agora você já pode acessar sua conta.
                     </p>
                     <button onClick={onResetSuccess} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-all">
                         Ir para Login

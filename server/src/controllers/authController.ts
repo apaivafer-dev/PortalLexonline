@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '../database/db';
 import { generateToken } from '../utils/jwt';
 import { User } from '../types';
-import { sendConfirmationEmail, sendPasswordResetEmail } from '../utils/email';
+import { sendConfirmationEmail, sendPasswordResetEmail, sendWelcomeInviteEmail } from '../utils/email';
 import crypto from 'crypto';
 
 export async function login(req: Request, res: Response): Promise<void> {
@@ -302,7 +302,14 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
 
     try {
         const db = await getDatabase();
-        const user = await db.get<User>('SELECT * FROM users WHERE reset_token = ?', token);
+        // Check both reset_token and confirmation_token (for first time setup)
+        let user = await db.get<User>('SELECT * FROM users WHERE reset_token = ?', token);
+        let isSetup = false;
+
+        if (!user) {
+            user = await db.get<User>('SELECT * FROM users WHERE confirmation_token = ?', token);
+            isSetup = true;
+        }
 
         if (!user) {
             res.status(400).json({ success: false, error: 'Token de redefinição inválido' });
@@ -319,12 +326,19 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
 
         const passwordHash = await bcrypt.hash(password, 12);
 
-        await db.run(
-            'UPDATE users SET password_hash = ?, reset_token = NULL, token_expires_at = NULL, updated_at = ? WHERE id = ?',
-            [passwordHash, now.toISOString(), user.id]
-        );
+        if (isSetup) {
+            await db.run(
+                'UPDATE users SET password_hash = ?, email_confirmed = true, confirmation_token = NULL, token_expires_at = NULL, updated_at = ? WHERE id = ?',
+                [passwordHash, now.toISOString(), user.id]
+            );
+        } else {
+            await db.run(
+                'UPDATE users SET password_hash = ?, reset_token = NULL, token_expires_at = NULL, updated_at = ? WHERE id = ?',
+                [passwordHash, now.toISOString(), user.id]
+            );
+        }
 
-        res.json({ success: true, message: 'Senha redefinida com sucesso! Você já pode fazer login.' });
+        res.json({ success: true, message: isSetup ? 'Cadastro concluído com sucesso!' : 'Senha redefinida com sucesso! Você já pode fazer login.' });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Erro ao redefinir senha' });
     }

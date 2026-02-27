@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getDatabase } from '../database/db';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
+import { sendCalculationResultEmail } from '../utils/email';
 
 // ═══════════════════════════════════════════════════════════════════════
 // PUBLISH CALCULATOR
@@ -10,7 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 // ═══════════════════════════════════════════════════════════════════════
 
 export async function publishCalculator(req: AuthenticatedRequest, res: Response): Promise<void> {
-    const { companyName, primaryColor, whatsappNumber, whatsappMessage, showLeadForm, customCss } = req.body;
+    const { companyName, primaryColor, whatsappNumber, whatsappMessage, showLeadForm, customCss, headerBgColor, headerFontColor, config } = req.body;
 
     try {
         const db = await getDatabase();
@@ -30,15 +31,15 @@ export async function publishCalculator(req: AuthenticatedRequest, res: Response
 
         if (existing) {
             await db.run(
-                `UPDATE published_calculators SET slug = ?, company_name = ?, primary_color = ?, whatsapp_number = ?, whatsapp_message = ?, show_lead_form = ?, custom_css = ?, is_active = true, updated_at = ?
+                `UPDATE published_calculators SET slug = ?, company_name = ?, primary_color = ?, whatsapp_number = ?, whatsapp_message = ?, show_lead_form = ?, custom_css = ?, header_bg_color = ?, header_font_color = ?, config = ?, is_active = true, updated_at = ?
                  WHERE user_id = ?`,
-                [slug, companyName || '', primaryColor || '#2563eb', whatsappNumber || '', whatsappMessage || '', showLeadForm !== false, customCss || '', now, req.user!.userId]
+                [slug, companyName || '', primaryColor || '#2563eb', whatsappNumber || '', whatsappMessage || '', showLeadForm !== false, customCss || '', headerBgColor || '#0f172a', headerFontColor || '#ffffff', JSON.stringify(config || {}), now, req.user!.userId]
             );
         } else {
             await db.run(
-                `INSERT INTO published_calculators (id, user_id, slug, company_name, primary_color, whatsapp_number, whatsapp_message, show_lead_form, custom_css, is_active, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, true, ?, ?)`,
-                [uuidv4(), req.user!.userId, slug, companyName || '', primaryColor || '#2563eb', whatsappNumber || '', whatsappMessage || '', showLeadForm !== false, customCss || '', now, now]
+                `INSERT INTO published_calculators (id, user_id, slug, company_name, primary_color, whatsapp_number, whatsapp_message, show_lead_form, custom_css, header_bg_color, header_font_color, config, is_active, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true, ?, ?)`,
+                [uuidv4(), req.user!.userId, slug, companyName || '', primaryColor || '#2563eb', whatsappNumber || '', whatsappMessage || '', showLeadForm !== false, customCss || '', headerBgColor || '#0f172a', headerFontColor || '#ffffff', JSON.stringify(config || {}), now, now]
             );
         }
 
@@ -97,6 +98,8 @@ export async function getPublicCalculator(req: Request, res: Response): Promise<
                 whatsappMessage: published.whatsapp_message,
                 showLeadForm: published.show_lead_form,
                 customCss: published.custom_css,
+                headerBgColor: published.header_bg_color,
+                headerFontColor: published.header_font_color,
             },
         });
     } catch (error) {
@@ -117,7 +120,7 @@ export async function unpublishCalculator(req: AuthenticatedRequest, res: Respon
 
 export async function submitPublicLead(req: Request, res: Response): Promise<void> {
     const slug = req.params.slug as string;
-    const { name, email, phone, estimatedValue, notes } = req.body;
+    const { name, email, phone, estimatedValue, notes, pdfBase64, calculationHtml } = req.body;
 
     if (!slug || !/^[a-z0-9._-]+$/i.test(slug)) {
         res.status(400).json({ success: false, error: 'Slug inválido' });
@@ -132,8 +135,17 @@ export async function submitPublicLead(req: Request, res: Response): Promise<voi
     try {
         const db = await getDatabase();
 
-        // Find user by slug
-        const user = await db.get('SELECT id, company_id FROM users WHERE slug = ?', slug);
+        // Find user by slug + their company profile
+        const user = await db.get(
+            `SELECT u.id, u.company_id, u.name as lawyer_name, u.email as lawyer_email,
+                    cp.name as firm_name, cp.phone as firm_phone, cp.email as firm_email,
+                    cp.website as firm_website, cp.address_street, cp.address_number,
+                    cp.address_city, cp.address_state
+             FROM users u
+             LEFT JOIN company_profiles cp ON cp.user_id = u.id
+             WHERE u.slug = ?`,
+            slug
+        );
         if (!user) {
             res.status(404).json({ success: false, error: 'Conta não encontrada' });
             return;
@@ -174,6 +186,29 @@ export async function submitPublicLead(req: Request, res: Response): Promise<voi
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [leadId, userId, companyId, name, email, phone || '', pipeline.id, stage.id, estimatedValue || 0, notes || '', now, now]
         );
+
+        // Send calculation result email with PDF attachment
+        try {
+            const companyInfo = {
+                firmName: user.firm_name || 'Advocacia Trabalhista',
+                phone: user.firm_phone || '',
+                email: user.firm_email || '',
+                website: user.firm_website || '',
+                city: user.address_city || '',
+                state: user.address_state || '',
+            };
+
+            await sendCalculationResultEmail(
+                email,
+                name,
+                companyInfo,
+                pdfBase64 || null,
+                calculationHtml || null
+            );
+        } catch (emailErr) {
+            // Email failure should not block the response
+            console.error('Error sending calculation email:', emailErr);
+        }
 
         res.json({ success: true, message: 'Lead capturado com sucesso' });
 

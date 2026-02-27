@@ -314,6 +314,21 @@ export async function initializeDatabase(): Promise<void> {
       ALTER TABLE leads ADD COLUMN tags TEXT[] DEFAULT '{}';
     EXCEPTION WHEN duplicate_column THEN NULL;
     END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE published_calculators ADD COLUMN header_bg_color TEXT DEFAULT '#0f172a';
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE published_calculators ADD COLUMN header_font_color TEXT DEFAULT '#ffffff';
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE published_calculators ADD COLUMN config JSONB DEFAULT '{}';
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$;
   `);
 
   console.log('✅ Database PostgreSQL initialized successfully');

@@ -204,6 +204,13 @@ export const adminApi = {
         return request<any>('/admin/stats');
     },
 
+    async updateUser(userId: string, data: { name: string; email: string; phone?: string; firmName?: string }) {
+        return request<any>(`/admin/users/${userId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        });
+    },
+
     async toggleUserStatus(userId: string) {
         return request<any>(`/admin/users/${userId}/toggle-status`, { method: 'PATCH' });
     },
@@ -213,6 +220,10 @@ export const adminApi = {
             method: 'PATCH',
             body: JSON.stringify({ plan }),
         });
+    },
+
+    async resendInvite(userId: string) {
+        return request<void>(`/admin/users/${userId}/resend-invite`, { method: 'POST' });
     },
 };
 
@@ -323,6 +334,8 @@ export const publishApi = {
         whatsappMessage?: string;
         showLeadForm?: boolean;
         customCss?: string;
+        headerBgColor?: string;
+        headerFontColor?: string;
     }) {
         return request<any>('/publish/calculator', { method: 'POST', body: JSON.stringify(data) });
     },

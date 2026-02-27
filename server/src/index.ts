@@ -16,6 +16,7 @@ import crmRoutes from './routes/crm';
 import bannersRoutes from './routes/banners';
 import cardsRoutes from './routes/cards';
 import publishRoutes from './routes/publish';
+import seoRoutes from './routes/seoView';
 import { errorHandler, requestLogger, notFound } from './middleware/errorHandler';
 import { seedAdminUser } from './database/seed';
 
@@ -25,7 +26,11 @@ const configSecret = defineJsonSecret('FUNCTIONS_CONFIG_EXPORT');
 const app = express();
 
 // --- Security & Middleware ---
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: false, // Disable CSP to allow frontend to fetch our API
+    crossOriginResourcePolicy: false, // Allow loading external assets
+    crossOriginOpenerPolicy: false // Prevent breaking external integrations
+}));
 app.use(cookieParser());
 
 // --- Secret Injection Context ---
@@ -80,6 +85,7 @@ app.use(async (req, res, next) => {
 });
 
 // --- Routes ---
+app.use('/c', seoRoutes); // SSR SEO route
 app.use('/api/auth', authRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/pipelines', pipelinesRoutes);

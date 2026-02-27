@@ -11,7 +11,7 @@ export async function sendConfirmationEmail(email: string, name: string, token: 
 
     try {
         await resend.emails.send({
-            from: 'LexOnline <onboarding@resend.dev>',
+            from: 'LexOnline <no-reply@lexonline.com.br>',
             to: email,
             subject: 'Confirme seu email - LexOnline',
             html: `
@@ -37,7 +37,7 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
 
     try {
         await resend.emails.send({
-            from: 'LexOnline <onboarding@resend.dev>',
+            from: 'LexOnline <no-reply@lexonline.com.br>',
             to: email,
             subject: 'Redefinição de Senha - LexOnline',
             html: `
@@ -64,7 +64,7 @@ export async function sendWelcomeInviteEmail(email: string, name: string, token:
 
     try {
         await resend.emails.send({
-            from: 'LexOnline <onboarding@resend.dev>',
+            from: 'LexOnline <no-reply@lexonline.com.br>',
             to: email,
             subject: 'Você foi convidado para o LexOnline',
             html: `
@@ -84,4 +84,131 @@ export async function sendWelcomeInviteEmail(email: string, name: string, token:
     } catch (error) {
         console.error('Error sending invite email:', error);
     }
+}
+
+export interface CompanyInfo {
+    firmName: string;
+    phone: string;
+    email: string;
+    website: string;
+    city: string;
+    state: string;
+}
+
+export async function sendCalculationResultEmail(
+    to: string,
+    recipientName: string,
+    company: CompanyInfo,
+    pdfBase64: string | null,
+    calculationHtml: string | null
+) {
+    const cleanPhone = company.phone.replace(/\D/g, '');
+    const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent('Olá, quero falar com um especialista sobre meu cálculo de rescisão.')}`;
+
+    const attachments: any[] = [];
+    if (pdfBase64) {
+        const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
+        attachments.push({
+            filename: 'calculo-rescisao.pdf',
+            content: base64Data,
+            type: 'application/pdf',
+        });
+    }
+
+    const html = `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+        <body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0;">
+          <tr><td align="center">
+            <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+              <!-- Header -->
+              <tr>
+                <td style="background:#0f172a;padding:32px 40px;">
+                  <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:800;">Seu Cálculo de Rescisão</h1>
+                  <p style="margin:8px 0 0;color:#94a3b8;font-size:14px;">${company.firmName}</p>
+                </td>
+              </tr>
+
+              <!-- Congrats -->
+              <tr>
+                <td style="padding:40px 40px 24px;">
+                  <div style="text-align:center;margin-bottom:32px;">
+                    <div style="width:72px;height:72px;background:#dcfce7;border-radius:50%;display:inline-block;line-height:72px;margin-bottom:16px;font-size:36px;">&#127881;</div>
+                    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:800;">Parabéns, ${recipientName}!</h2>
+                    <p style="margin:0;color:#475569;font-size:15px;line-height:1.6;">
+                      Seu cálculo de rescisão trabalhista foi processado com sucesso.<br/>
+                      O <strong>demonstrativo completo em PDF</strong> está em anexo neste e-mail.
+                    </p>
+                  </div>
+
+                  <!-- Disclaimer -->
+                  <div style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:32px;">
+                    <p style="margin:0;color:#92400e;font-size:13px;line-height:1.6;">
+                      <strong>&#9888; Estimativa Educativa:</strong> O valor exato depende da convenção coletiva de São Paulo. Consulte um advogado.
+                    </p>
+                  </div>
+
+                  ${calculationHtml ? `
+                  <!-- Calculation Summary -->
+                  <div style="background:#f8fafc;border-radius:12px;padding:24px;margin-bottom:32px;">
+                    <h3 style="margin:0 0 16px;color:#0f172a;font-size:16px;font-weight:700;">Resumo do Cálculo</h3>
+                    ${calculationHtml}
+                  </div>` : ''}
+
+                  <!-- Company Card -->
+                  <div style="background:#f8fafc;border-radius:12px;padding:24px;margin-bottom:24px;">
+                    <h3 style="margin:0 0 16px;color:#0f172a;font-size:16px;font-weight:700;">Fale com o Especialista</h3>
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding:4px 0;color:#475569;font-size:14px;">
+                          <strong style="color:#0f172a;">${company.firmName}</strong>
+                        </td>
+                      </tr>
+                      ${company.city ? `<tr><td style="padding:4px 0;color:#475569;font-size:14px;">&#128205; ${company.city}${company.state ? ` - ${company.state}` : ''}</td></tr>` : ''}
+                      ${company.phone ? `<tr><td style="padding:4px 0;font-size:14px;">&#128222; <a href="tel:${cleanPhone}" style="color:#0f172a;text-decoration:none;">${company.phone}</a></td></tr>` : ''}
+                      ${company.email ? `<tr><td style="padding:4px 0;font-size:14px;">&#9993; <a href="mailto:${company.email}" style="color:#4f46e5;text-decoration:none;">${company.email}</a></td></tr>` : ''}
+                      ${company.website ? `<tr><td style="padding:4px 0;font-size:14px;">&#127758; <a href="${company.website}" style="color:#4f46e5;text-decoration:none;">${company.website}</a></td></tr>` : ''}
+                    </table>
+                  </div>
+
+                  <!-- WhatsApp CTA -->
+                  ${cleanPhone ? `
+                  <div style="text-align:center;margin-bottom:32px;">
+                    <a href="${whatsappUrl}"
+                       style="display:inline-block;background:#25d366;color:#ffffff;font-weight:800;font-size:15px;padding:16px 36px;border-radius:50px;text-decoration:none;">
+                      &#128172; Falar com Advogado no WhatsApp
+                    </a>
+                    <p style="margin:12px 0 0;color:#94a3b8;font-size:12px;">Resposta rápida e atendimento personalizado</p>
+                  </div>` : ''}
+
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 40px;text-align:center;">
+                  <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6;">
+                    Este e-mail foi enviado porque você solicitou um cálculo de rescisão trabalhista.<br/>
+                    O cálculo é uma estimativa educativa. Para análise jurídica precisa, consulte um advogado especialista.
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td></tr>
+        </table>
+        </body>
+        </html>
+    `;
+
+    await resend.emails.send({
+        from: 'LexOnline <no-reply@lexonline.com.br>',
+        to,
+        subject: `Seu Cálculo de Rescisão Trabalhista - ${company.firmName}`,
+        html,
+        attachments: attachments.length > 0 ? attachments : undefined,
+    });
 }

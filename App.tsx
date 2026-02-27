@@ -113,6 +113,7 @@ export default function App() {
   const [authView, setAuthView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'confirm-email' | 'setup-password'>('login');
   const [token, setToken] = useState<string>('');
   const [activePage, setActivePage] = useState('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'stats' | 'users'>('stats');
   const [userProfile, setUserProfile] = useState<UserProfile>(BLANK_PROFILE);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(BLANK_COMPANY);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -285,6 +286,24 @@ export default function App() {
     }
   };
 
+  const handleUpdateUser = async (userId: string, data: any) => {
+    try {
+      const result = await adminApi.updateUser(userId, data);
+      setAdminUsers(prev => prev.map(u => u.id === userId ? mapUser(result) : u));
+    } catch (err) {
+      console.error('Failed to update user:', err);
+    }
+  };
+
+  const handleResendInvite = async (userId: string) => {
+    try {
+      await adminApi.resendInvite(userId);
+      alert('Convite reenviado com sucesso!');
+    } catch (err: any) {
+      alert('Erro ao reenviar convite: ' + err.message);
+    }
+  };
+
   const handleUpdateUserPlan = async (userId: string, newPlan: UserProfile['plan']) => {
     try {
       await adminApi.updateUserPlan(userId, newPlan);
@@ -379,12 +398,16 @@ export default function App() {
       case 'interactive-card':
         return <InteractiveCard userProfile={userProfile} />;
       case 'admin':
+      case 'users-admin':
         return (
           <AdminDashboard
             users={adminUsers}
             onToggleUserStatus={handleToggleUserStatus}
             onUpdateUserPlan={handleUpdateUserPlan}
             onCreateUser={handleCreateUser}
+            onUpdateUser={handleUpdateUser}
+            onResendInvite={handleResendInvite}
+            initialTab={activePage === 'admin' ? 'stats' : 'users'}
           />
         );
       default:
