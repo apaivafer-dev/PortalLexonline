@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { User, CreditCard, Save, CheckCircle, AlertTriangle, UserCircle, Crown, ShieldCheck, Star } from 'lucide-react';
 import { formatDate } from '../lib/utils';
+import { CompanySettings } from './CompanySettings';
 
 interface ProfileSettingsProps {
   profile: UserProfile;
   onUpdate: (profile: UserProfile) => void;
+  company: CompanyProfile;
+  onUpdateCompany: (company: CompanyProfile) => void;
 }
 
-export const ProfileSettings = ({ profile, onUpdate }: ProfileSettingsProps) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'plan'>('profile');
+export const ProfileSettings = ({ profile, onUpdate, company, onUpdateCompany }: ProfileSettingsProps) => {
+  const [activeTab, setActiveTab] = useState<'profile' | 'company' | 'plan'>('profile');
   const [formData, setFormData] = useState<UserProfile>(profile);
   const [isSaved, setIsSaved] = useState(false);
 

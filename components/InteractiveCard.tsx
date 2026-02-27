@@ -1,34 +1,80 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { Type, Layout, Palette, Clock, Plus, ArrowLeft, Trash2, Save, Settings, Lock } from 'lucide-react';
-import { formatDate } from '../lib/utils';
+import QRCode from 'qrcode';
+import JSZip from 'jszip';
 import { UserProfile } from '../types';
 import { cardsApi } from '../services/api';
 
-// Declare types for window libraries
+// Declare types for Ionicons and window libraries
 declare global {
     interface Window {
         jspdf: any;
     }
 }
 
-// --- TYPES ---
-interface CardButton {
+// --- CONSTANTS & CONFIG ---
+const NETWORK_DEFAULT_COLORS: Record<string, string> = {
+    whatsapp: '#25D366', telegram: '#0088cc', telefone: '#10b981', email: '#ef4444',
+    agendamento: '#8b5cf6', pagamento: '#22c55e', vcard: '#6366f1', linkedin: '#0A66C2',
+    site: '#3b82f6', behance: '#1769ff', loja: '#f59e0b', instagram: '#E4405F',
+    facebook: '#1877F2', youtube: '#FF0000', tiktok: '#000000', twitter: '#1DA1F2',
+    medium: '#000000', spotify: '#1DB954', discord: '#5865F2', localizacao: '#ea4335'
+};
+
+const REDES = [
+  {key: 'whatsapp', name: 'WhatsApp', urlPrefix: 'https://wa.me/', icon: 'logo-whatsapp'},
+  {key: 'telegram', name: 'Telegram', urlPrefix: 'https://t.me/', icon: 'send-outline'},
+  {key: 'telefone', name: 'Telefone', urlPrefix: 'tel:', icon: 'call-outline'},
+  {key: 'email', name: 'Email', urlPrefix: 'mailto:', icon: 'mail-outline'},
+  {key: 'agendamento', name: 'Agendamento', urlPrefix: 'https://calendly.com/', icon: 'calendar-outline'},
+  {key: 'pagamento', name: 'Pagamento', urlPrefix: 'https://pay.me/', icon: 'cash-outline'},
+  {key: 'vcard', name: 'Vcard', icon: 'person-circle-outline'},
+  {key: 'linkedin', name: 'LinkedIn', urlPrefix: 'https://linkedin.com/in/', icon: 'logo-linkedin'},
+  {key: 'site', name: 'Website', urlPrefix: 'https://', icon: 'globe-outline'},
+  {key: 'behance', name: 'Behance', urlPrefix: 'https://www.behance.net/', icon: 'logo-behance'},
+  {key: 'loja', name: 'Loja Online', urlPrefix: 'https://myshop.com/', icon: 'bag-handle-outline'},
+  {key: 'instagram', name: 'Instagram', urlPrefix: 'https://instagram.com/', icon: 'logo-instagram'},
+  {key: 'facebook', name: 'Facebook', urlPrefix: 'https://facebook.com/', icon: 'logo-facebook'},
+  {key: 'youtube', name: 'YouTube', urlPrefix: 'https://youtube.com/', icon: 'logo-youtube'},
+  {key: 'tiktok', name: 'TikTok', urlPrefix: 'https://tiktok.com/@', icon: 'logo-tiktok'},
+  {key: 'twitter', name: 'Twitter', urlPrefix: 'https://twitter.com/', icon: 'logo-twitter'},
+  {key: 'medium', name: 'Medium', urlPrefix: 'https://medium.com/@', icon: 'logo-medium'},
+  {key: 'spotify', name: 'Spotify', urlPrefix: 'https://open.spotify.com/', icon: 'musical-notes-outline'},
+  {key: 'discord', name: 'Discord', urlPrefix: 'https://discord.gg/', icon: 'logo-discord'},
+  {key: 'localizacao', name: 'Localização', urlPrefix: 'https://maps.google.com/?q=', icon: 'location-outline'}
+];
+
+const DEFAULT_BUTTON_STYLE = {
+    border: '#ffffff',
+    bg: 'transparent',
+    icon: '#ffffff',
+    label: '#ffffff',
+    fontFamily: 'Arial',
+    fontSize: '12px',
+    useNetworkColor: false,
+    previewBg: '#00ABE4'
+};
+
+interface ButtonConfig {
     active: boolean;
     title: string;
     social: string | null;
     url: string;
-    style: any;
+    vcardData?: any;
+    customColors?: { border?: string; bg?: string; icon?: string; label?: string };
+    customFont?: string;
+    customSize?: string;
 }
 
 interface CustomText {
+    id: string;
     text: string;
     font: string;
     size: string;
     color: string;
-    top: string;
-    left: string;
+    x: number;
+    y: number;
 }
 
 interface CardConfig {
@@ -193,6 +239,7 @@ export const InteractiveCard = ({ userProfile }: InteractiveCardProps) => {
             alert("Sua conta possui mais cartões do que o permitido no plano Trial. Faça o upgrade para voltar a editar.");
             return;
         }
+    }, [toast]);
 
         setCurrentConfig(card);
         setViewMode('editor');
@@ -928,10 +975,29 @@ export const InteractiveCard = ({ userProfile }: InteractiveCardProps) => {
         .interactive-card-scope { --card-w: 400px; --card-h: 711px; --card-bg: #00ABE4; }
         .interactive-card-scope .stage { display:flex; gap:48px; justify-content:center; width:100%; flex-wrap:wrap; }
         
-        .interactive-card-scope #card {
-            width: var(--card-w); height: var(--card-h); background: var(--card-bg);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.12); position: relative; overflow: hidden; 
-            display: flex; flex-direction: column; padding: 20px 20px 32px; margin: 0 auto;
+        // Determine grid columns based on layout
+        let gridStyle: React.CSSProperties = {
+            display: 'grid',
+            gap: layout === '3x2' ? '10px' : '24px',
+            width: '100%',
+            alignItems: 'end',
+            justifyItems: alignment === 'left' ? 'start' : (alignment === 'right' ? 'end' : 'center'),
+        };
+
+        if (layout === '3x2') {
+            gridStyle.gridTemplateColumns = isRectangular ? '1fr' : 'repeat(3, 1fr)';
+            gridStyle.gridAutoRows = '72px';
+            gridStyle.marginBottom = '48px';
+        } else {
+            // Vertical layouts
+            gridStyle.display = 'flex';
+            gridStyle.flexDirection = 'column';
+            gridStyle.position = 'absolute';
+            gridStyle.top = '84px';
+            gridStyle.width = '90px';
+            gridStyle.gap = '24px';
+            if (layout === 'vertical-left') gridStyle.left = '4px';
+            if (layout === 'vertical-right') gridStyle.right = '4px';
         }
 
         .interactive-card-scope #cardHeaderControls {

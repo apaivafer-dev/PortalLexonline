@@ -5,9 +5,10 @@ import { Building2, Save, CheckCircle, MapPin, Phone, Globe, Mail, Search, Loade
 interface CompanySettingsProps {
   company: CompanyProfile;
   onUpdate: (company: CompanyProfile) => void;
+  hideHeader?: boolean;
 }
 
-export const CompanySettings = ({ company, onUpdate }: CompanySettingsProps) => {
+export const CompanySettings = ({ company, onUpdate, hideHeader = false }: CompanySettingsProps) => {
   const [formData, setFormData] = useState<CompanyProfile>(company);
   const [isSaved, setIsSaved] = useState(false);
   const [isLoadingCep, setIsLoadingCep] = useState(false);
@@ -78,17 +79,19 @@ export const CompanySettings = ({ company, onUpdate }: CompanySettingsProps) => 
     <div className="w-full space-y-6 animate-in fade-in duration-500">
       
       {/* Header Card */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-xl">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-            <div className="bg-white/20 p-3 rounded-xl">
-                <Building2 size={32} />
-            </div>
-            <div>
-                <h2 className="text-3xl font-bold">Dados da Empresa</h2>
-                <p className="text-blue-100 mt-1">Configure as informações do seu escritório para exibição nos relatórios e contratos.</p>
-            </div>
+      {!hideHeader && (
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-xl">
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+              <div className="bg-white/20 p-3 rounded-xl">
+                  <Building2 size={32} />
+              </div>
+              <div>
+                  <h2 className="text-3xl font-bold">Dados da Empresa</h2>
+                  <p className="text-blue-100 mt-1">Configure as informações do seu escritório para exibição nos relatórios e contratos.</p>
+              </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Form Content */}
       <div className="animate-in slide-in-from-bottom-2 fade-in duration-300">
