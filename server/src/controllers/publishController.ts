@@ -215,7 +215,46 @@ export async function submitPublicLead(req: Request, res: Response): Promise<voi
             console.error('Error sending calculation email:', emailErr);
         }
 
-        res.json({ success: true, message: 'Lead capturado com sucesso' });
+        // --- WEBHOOK TRIGGER (Integration with External CRMs) ---
+        (async () => {
+            try {
+                // Check if there is a webhook URL configured in the calculator config
+                const calc = await db.get('SELECT config FROM published_calculators WHERE user_id = ?', userId);
+                const config = calc?.config || {};
+                const webhookUrl = config.webhookUrl;
+
+                if (webhookUrl && webhookUrl.startsWith('http')) {
+                    console.log(`[WEBHOOK] Triggering for lead ${leadId} at ${webhookUrl}`);
+
+                    const payload = {
+                        event: 'lead.created',
+                        timestamp: now,
+                        data: {
+                            id: leadId,
+                            name,
+                            email,
+                            phone: phone || '',
+                            estimated_value: estimatedValue || 0,
+                            source: 'Calculator',
+                            slug: slug,
+                            firm_name: user?.firm_name || ''
+                        }
+                    };
+
+                    // Fire and forget (don't await to not slow down the response, 
+                    // though this is already inside an IIFE)
+                    fetch(webhookUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    }).catch(err => console.error('[WEBHOOK] Request failed:', err));
+                }
+            } catch (err) {
+                console.error('[WEBHOOK] Processing error:', err);
+            }
+        })();
+
+        res.json({ success: true, message: 'Lead capturado com sucesso', id: leadId });
 
     } catch (error) {
         console.error('Submit public lead error:', error);

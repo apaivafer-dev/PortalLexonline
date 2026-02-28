@@ -69,7 +69,7 @@ export const LoginPage = ({ onLogin, onNavigateToRegister, setAuthView }: LoginP
                             <CheckCircle2 className="text-green-400" /> Cálculos exatos e atualizados pela CLT
                         </div>
                         <div className="flex items-center gap-3 text-indigo-100">
-                            <CheckCircle2 className="text-green-400" /> Geração de PDFs profissionais
+                            <CheckCircle2 className="text-green-400" /> Relatórios detalhados por e-mail
                         </div>
                         <div className="flex items-center gap-3 text-indigo-100">
                             <CheckCircle2 className="text-green-400" /> CRM Integrado

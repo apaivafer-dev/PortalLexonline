@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { UserProfile } from '../types';
@@ -689,11 +688,11 @@ export const InteractiveCard = ({ userProfile }: InteractiveCardProps) => {
                 });
             }
 
-            // === SAVE & DOWNLOAD ===
+            // === SAVE ===
             async function executeDownload() {
                 const filename = (getEl('filenameInput') as HTMLInputElement)?.value || 'meu-cartao';
 
-                // 1. SAVE STATE to React
+                // SAVE STATE to React
                 const newConfig: CardConfig = {
                     ...cardData,
                     cardName: filename,
@@ -710,20 +709,8 @@ export const InteractiveCard = ({ userProfile }: InteractiveCardProps) => {
 
                 handleSaveFromEditor(newConfig);
 
-                // 2. GENERATE PDF
-                if (!app.imageUploaded) { showToast('Carregue uma imagem primeiro', 'error'); return; }
                 if (dom.downloadOverlay) dom.downloadOverlay.classList.remove('show');
-                resetTextSelection();
-
-                if (!dom.card) return;
-                const canvas = await html2canvas(dom.card, { scale: 2, useCORS: true, allowTaint: true });
-                const imgData = canvas.toDataURL('image/png');
-
-                const pdf = new jsPDF({ unit: 'pt', format: [canvas.width * 0.75, canvas.height * 0.75] });
-                pdf.addImage(imgData, 'PNG', 0, 0, canvas.width * 0.75, canvas.height * 0.75);
-                pdf.save(filename + '.pdf');
-
-                showToast('Salvo e Baixado!', 'success');
+                showToast('Salvo com sucesso!', 'success');
             }
 
             function handleImageUpload(file: File) {

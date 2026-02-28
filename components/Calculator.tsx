@@ -278,6 +278,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
   const [googleAdsLabel, setGoogleAdsLabel] = useState('');
   const [copied, setCopied] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState('');
 
   // Message & Contact State
   const [whatsappMessage, setWhatsappMessage] = useState(DEFAULT_WHATSAPP_MSG);
@@ -366,6 +367,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
           if (config.widgetPosition) setWidgetPosition(config.widgetPosition);
           if (config.widgetAction) setWidgetAction(config.widgetAction);
           if (config.targetUrl) setTargetUrl(config.targetUrl);
+          if (config.webhookUrl) setWebhookUrl(config.webhookUrl);
           if (publishedData.header_bg_color) setHeaderBgColor(publishedData.header_bg_color);
           if (publishedData.header_font_color) setHeaderFontColor(publishedData.header_font_color);
 
@@ -391,7 +393,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
     try {
       if (isPublished) {
         const config = {
-          gaCode, adsId, googleAdsId, googleAdsLabel, customPhoneNumber, whatsappMessage, widgetColor, widgetText, widgetPosition, widgetAction, targetUrl
+          gaCode, adsId, googleAdsId, googleAdsLabel, customPhoneNumber, whatsappMessage, widgetColor, widgetText, widgetPosition, widgetAction, targetUrl, webhookUrl
         };
         await publishApi.publishCalculator({
           companyName: displayTitle,
@@ -1038,79 +1040,165 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
 
 
             {step === 'result' && (
-              <div className="max-w-lg mx-auto py-12 animate-in fade-in zoom-in duration-300">
-                {/* Success Header */}
-                <div className="text-center mb-10">
-                  <div className="w-24 h-24 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
-                    <CheckCircle className="h-12 w-12 text-green-600 dark:text-green-400" />
-                  </div>
-                  <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-3">Parabéns!</h3>
-                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed text-base">
-                    Seu cálculo foi processado e o <strong className="text-slate-700 dark:text-slate-200">demonstrativo completo</strong> foi enviado para o e-mail:
-                  </p>
-                  <p className="mt-2 text-indigo-600 dark:text-indigo-400 font-bold text-lg">{leadData.email}</p>
-                </div>
+              <div className="flex items-center justify-center py-12 bg-[#f7f8fa] dark:bg-transparent rounded-3xl" style={{ fontFamily: "'Sora', sans-serif" }}>
+                <style>{`
+                  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
+                  @keyframes slideUpCard {
+                    from { transform: translateY(24px) scale(0.98); opacity: 0; }
+                    to { transform: translateY(0) scale(1); opacity: 1; }
+                  }
+                  @keyframes popIn {
+                    0% { transform: scale(0.5); opacity: 0; }
+                    80% { transform: scale(1.05); opacity: 1; }
+                    100% { transform: scale(1); opacity: 1; }
+                  }
+                  @keyframes pulseOut {
+                    0% { transform: scale(1); opacity: 0.6; }
+                    100% { transform: scale(2); opacity: 0; }
+                  }
+                  @keyframes drawCircle {
+                    from { stroke-dashoffset: 166; }
+                    to { stroke-dashoffset: 0; }
+                  }
+                  @keyframes drawCheck {
+                    from { stroke-dashoffset: 40; }
+                    to { stroke-dashoffset: 0; }
+                  }
+                  @keyframes fadeUpItem {
+                    from { transform: translateY(8px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                  }
+                  .animate-slideUpCard {
+                    animation: slideUpCard 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                  }
+                  .animate-popIn {
+                    animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                  }
+                  .pulse-ring-1 {
+                    animation: pulseOut 1.5s ease-out 0.6s infinite;
+                  }
+                  .pulse-ring-2 {
+                    animation: pulseOut 1.5s ease-out 0.9s infinite;
+                  }
+                  .svg-circle {
+                    stroke-dasharray: 166;
+                    stroke-dashoffset: 166;
+                    animation: drawCircle 0.5s ease-out 0.4s forwards;
+                  }
+                  .svg-check {
+                    stroke-dasharray: 40;
+                    stroke-dashoffset: 40;
+                    animation: drawCheck 0.4s ease-out 0.8s forwards;
+                  }
+                  .fade-up-1 { animation: fadeUpItem 0.5s ease-out 0.5s forwards; opacity: 0; }
+                  .fade-up-2 { animation: fadeUpItem 0.5s ease-out 0.6s forwards; opacity: 0; }
+                  .fade-up-3 { animation: fadeUpItem 0.5s ease-out 0.7s forwards; opacity: 0; }
+                  .fade-up-4 { animation: fadeUpItem 0.5s ease-out 0.8s forwards; opacity: 0; }
+                  .fade-up-5 { animation: fadeUpItem 0.5s ease-out 0.9s forwards; opacity: 0; }
+                  .fade-up-6 { animation: fadeUpItem 0.5s ease-out 1.0s forwards; opacity: 0; }
+                  .fade-up-7 { animation: fadeUpItem 0.5s ease-out 1.1s forwards; opacity: 0; }
+                `}</style>
 
-                {/* Disclaimer */}
-                <div className="bg-amber-50 dark:bg-amber-900/10 border-l-4 border-amber-400 p-4 rounded-r-xl mb-8">
-                  <div className="flex gap-3">
-                    <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-amber-800 dark:text-amber-200">
-                      <strong>Estimativa Educativa:</strong> O valor exato depende da convenção coletiva de São Paulo. Consulte um advogado.
+                {/* Card Único */}
+                <div className="w-full max-w-[440px] bg-white rounded-[20px] overflow-hidden animate-slideUpCard relative"
+                  style={{ boxShadow: '0 0 0 1px #eaecf0, 0 8px 32px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.04)' }}>
+
+                  {/* BLOCO 1 - HERO */}
+                  <div className="relative pt-[44px] px-[32px] pb-[36px] text-center overflow-hidden border-b border-[#d1fae5]"
+                    style={{ background: 'linear-gradient(160deg, #f0fdf4, #dcfce7, #bbf7d0)' }}>
+
+                    {/* Círculos Decorativos */}
+                    <div className="absolute top-[-40px] right-[-40px] w-[160px] h-[160px] rounded-full pointer-events-none"
+                      style={{ background: 'radial-gradient(circle, rgba(74,222,128,0.15) 0%, rgba(74,222,128,0) 70%)' }} />
+                    <div className="absolute bottom-[-30px] left-[-30px] w-[120px] h-[120px] rounded-full pointer-events-none"
+                      style={{ background: 'radial-gradient(circle, rgba(74,222,128,0.2) 0%, rgba(74,222,128,0) 70%)' }} />
+
+                    {/* Elemento de check animado */}
+                    <div className="relative w-[80px] h-[80px] mx-auto mb-6 flex items-center justify-center">
+                      {/* Pulse rings */}
+                      <div className="absolute inset-0 rounded-full border-2 border-[#4ade80] opacity-0 pulse-ring-1" />
+                      <div className="absolute inset-0 rounded-full border-2 border-[#4ade80] opacity-0 pulse-ring-2" />
+                      {/* Círculo branco */}
+                      <div className="relative w-full h-full bg-white rounded-full flex items-center justify-center animate-popIn opacity-0"
+                        style={{ boxShadow: '0 4px 20px rgba(22,163,74,0.2)' }}>
+                        <svg width="38" height="38" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle className="svg-circle" cx="26" cy="26" r="25" fill="none" stroke="#16a34a" strokeWidth="2" />
+                          <path className="svg-check" d="M14 27 L22 35 L38 19" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <h1 className="text-[28px] font-[800] tracking-[-1px] text-slate-900 fade-up-1 mb-2">Parabéns!</h1>
+                    <p className="text-[14.5px] text-[#5a6272] leading-[1.65] m-0 fade-up-2">
+                      Seu cálculo foi processado e o demonstrativo completo foi enviado para o e-mail:
                     </p>
+                    <div className="inline-block font-[700] text-[#4338ca] text-[14px] mt-1 fade-up-2">
+                      {leadData.email}
+                    </div>
+                  </div>
+
+                  {/* BLOCO 2 - CORPO DO CARD */}
+                  <div className="p-[24px_28px_28px] flex flex-col gap-[16px] bg-white">
+
+                    {/* SUB-BLOCO A - AVISO/NOTICE */}
+                    <div className="flex flex-row gap-[10px] items-start bg-[#fffbeb] rounded-[12px] p-[13px_15px] fade-up-3"
+                      style={{ border: '1px solid #fde68a', borderLeft: '3px solid #fbbf24' }}>
+                      <AlertTriangle className="w-5 h-5 text-[#fbbf24] flex-shrink-0 mt-[2px]" />
+                      <p className="text-[13px] text-[#92400e] leading-[1.55] m-0">
+                        <strong>Estimativa Educativa:</strong> O valor exato depende da convenção coletiva de {companyProfile.address?.city || 'São Paulo'}. Consulte um advogado.
+                      </p>
+                    </div>
+
+                    {/* SUB-BLOCO B - CARD DE CONTATO */}
+                    {(companyProfile.name || companyProfile.phone) && (
+                      <div className="flex flex-row gap-[14px] items-center bg-[#f7f8fa] rounded-[12px] p-[16px_18px] fade-up-4 transition-all duration-300 hover:border-[#c7d2fe] hover:shadow-[0_2px_12px_rgba(79,70,229,0.08)] cursor-default"
+                        style={{ border: '1px solid #eaecf0' }}>
+                        <div className="w-[46px] h-[46px] rounded-[12px] flex-shrink-0 flex items-center justify-center text-white"
+                          style={{ background: 'linear-gradient(135deg, #4338ca, #7c3aed)', boxShadow: '0 4px 12px rgba(67,56,202,0.25)' }}>
+                          <span className="font-bold text-lg">{(companyProfile.name || 'P').charAt(0).toUpperCase()}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-[700] uppercase tracking-[1px] text-[#9ba3af] mb-0.5">Fale com o especialista</span>
+                          <span className="text-[14.5px] font-[700] text-slate-900 leading-tight truncate max-w-[200px]" title={companyProfile.name}>{companyProfile.name || 'Advogado Associado'}</span>
+                          <div className="flex flex-row gap-1.5 items-center mt-1 text-[13px] text-[#5a6272]">
+                            <Phone size={12} />
+                            <span>{companyProfile.phone || activePhone || 'Contato não informado'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* SUB-BLOCO C - BOTÃO PRIMÁRIO (WhatsApp) */}
+                    {activePhone && (
+                      <a
+                        href={`https://wa.me/55${activePhone.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMessage)}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="w-full p-[16px] rounded-[12px] bg-[#25d366] text-white text-[15px] font-[700] flex items-center justify-center gap-2 fade-up-5 transition-all duration-300 hover:bg-[#1aab52] hover:-translate-y-[1px] active:translate-y-0"
+                        style={{ boxShadow: '0 4px 20px rgba(37,211,102,0.35)' }}
+                      >
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
+                        </svg>
+                        Falar com Advogado no WhatsApp
+                      </a>
+                    )}
+
+                    {/* SUB-BLOCO D - BOTÃO SECUNDÁRIO */}
+                    <button
+                      onClick={() => { setStep('input'); setResult(null); setLeadData({ name: '', email: '', phone: '', consent: false }); }}
+                      className="w-full p-[13px] rounded-[12px] bg-white text-[#5a6272] text-[14px] font-[600] fade-up-6 transition-all duration-300 hover:border-[#c7d2fe] hover:text-[#4338ca] hover:bg-[#eef2ff]"
+                      style={{ border: '1.5px solid #eaecf0', outline: 'none' }}
+                    >
+                      Realizar Novo Cálculo
+                    </button>
+
+                    {/* SUB-BLOCO E - FOOTER */}
+                    <div className="text-center text-[11.5px] text-[#9ba3af] mt-2 fade-up-7">
+                      Powered by <a href="https://lexonline.com.br" target="_blank" rel="noopener noreferrer" className="text-[#4338ca] font-[600] hover:underline hover:text-indigo-800 transition-colors">LexOnline</a> · Calculadora Trabalhista
+                    </div>
+
                   </div>
                 </div>
-
-                {/* Lawyer contact card */}
-                {companyProfile.name && (
-                  <div className="bg-slate-50 dark:bg-white/5 rounded-2xl p-6 mb-6 space-y-3">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Fale com o Especialista</p>
-                    <p className="font-bold text-slate-900 dark:text-white text-base">{companyProfile.name}</p>
-                    {companyProfile.address?.city && (
-                      <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                        <MapPin size={14} />{companyProfile.address.city}{companyProfile.address.state ? ` - ${companyProfile.address.state}` : ''}
-                      </p>
-                    )}
-                    {companyProfile.phone && (
-                      <p className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <Phone size={14} />
-                        <a href={`tel:${companyProfile.phone.replace(/\D/g, '')}`} className="hover:underline">{companyProfile.phone}</a>
-                      </p>
-                    )}
-                    {companyProfile.email && (
-                      <p className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <span style={{ fontSize: 14 }}>✉</span>
-                        <a href={`mailto:${companyProfile.email}`} className="hover:underline">{companyProfile.email}</a>
-                      </p>
-                    )}
-                    {companyProfile.website && (
-                      <p className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <Globe size={14} />
-                        <a href={companyProfile.website} target="_blank" rel="noopener noreferrer" className="hover:underline">{companyProfile.website}</a>
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* WhatsApp button */}
-                {activePhone && (
-                  <a
-                    href={`https://wa.me/55${activePhone.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMessage)}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="w-full flex items-center justify-center gap-3 bg-[#25d366] hover:bg-[#20b858] text-white font-bold py-4 rounded-2xl transition-all hover:scale-[1.02] shadow-lg mb-4"
-                  >
-                    <MessageCircle size={22} />
-                    Falar com Advogado no WhatsApp
-                  </a>
-                )}
-
-                {/* New calculation */}
-                <button
-                  onClick={() => { setStep('input'); setResult(null); setLeadData({ name: '', email: '', phone: '', consent: false }); }}
-                  className="w-full py-3 rounded-2xl border-2 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 font-semibold hover:bg-slate-50 dark:hover:bg-white/5 transition-all"
-                >
-                  Realizar Novo Cálculo
-                </button>
               </div>
             )}
           </div>
@@ -1550,6 +1638,37 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
                     {generateIframeCode()}
                   </code>
                   <p className="text-xs text-slate-500 mt-3">Cole este código no seu site para exibir a calculadora embutida.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 9. AUTOMAÇÃO & CRMS ── */}
+            <div className="bg-white dark:bg-[#1E2128] rounded-[24px] border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 dark:border-white/5">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Unlock size={18} className="text-amber-500" />
+                  Automação & CRMs
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Envie seus leads em tempo real para o seu CRM ou Zapier</p>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">URL do Webhook (Zapier, Make, RD Station, etc)</label>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                      placeholder="https://hooks.zapier.com/..."
+                      className="w-full pl-4 pr-12 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-amber-500 outline-none dark:text-white text-sm transition-all"
+                    />
+                    <div className="absolute right-4 top-3.5 text-slate-400">
+                      <LinkIcon size={16} />
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2">
+                    Cole a URL gerada pelo seu CRM ou ferramenta de automação. O LexOnline enviará um POST com os dados do lead assim que ele for capturado.
+                  </p>
                 </div>
               </div>
             </div>
