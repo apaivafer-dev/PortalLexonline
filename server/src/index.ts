@@ -55,7 +55,7 @@ app.use((req, res, next) => {
 // CORS origin check
 app.use(cors({
     origin: (origin, callback) => {
-        const allowed = process.env.FRONTEND_URL || 'https://portallexonline-app.web.app';
+        const allowed = process.env.FRONTEND_URL || '*';
 
         // Browsers send Origin header. If it matches ours (ignoring slash/case), allow it.
         if (!origin || origin.replace(/\/$/, '') === allowed.replace(/\/$/, '')) {

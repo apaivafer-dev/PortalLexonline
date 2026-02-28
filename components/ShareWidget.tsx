@@ -35,7 +35,7 @@ export const ShareWidget = ({ username = 'usuario', initialTab = 'embed' }: Shar
     const [isDraggingPreview, setIsDraggingPreview] = useState(false);
     const dragOffset = useRef({ x: 0, y: 0 });
 
-    const baseUrl = import.meta.env.VITE_FRONTEND_URL || 'https://portallexonline-app.web.app';
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : (import.meta.env.VITE_FRONTEND_URL || '');
     const publicUrl = `${baseUrl}/c/${username}/calculorescisaotrabalhista`;
 
     useEffect(() => {

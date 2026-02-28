@@ -15,7 +15,7 @@ router.get('/:slug/calculorescisaotrabalhista', async (req, res, next) => {
         const db = await getDatabase();
 
         // Fetch raw HTML template if not cached or cache is older than 5 minutes
-        const frontendUrl = process.env.FRONTEND_URL || 'https://portallexonline-app.web.app';
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         let htmlTemplate = cache.indexHtml;
         const now = Date.now();
         if (!htmlTemplate || now - cache.lastFetch > 300000) {

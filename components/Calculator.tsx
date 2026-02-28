@@ -8,8 +8,7 @@ import {
 } from '../types';
 import { calculatorApi, publishApi } from '../services/api';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+
 import {
   FileText,
   Download,
@@ -269,7 +268,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
   const [leadErrors, setLeadErrors] = useState<{ email?: string }>({});
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState('');
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   // Settings State
   const [isPublished, setIsPublished] = useState(false);
@@ -453,7 +452,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
   const firmName = companyProfile.name;
   const currentYear = new Date().getFullYear();
   const displayTitle = firmName && firmName.trim() !== '' ? firmName : `Calculadora Rescisão em ${cityName}`;
-  const baseUrl = (import.meta as any).env.VITE_FRONTEND_URL || 'https://portallexonline-app.web.app';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ((import.meta as any).env.VITE_FRONTEND_URL || '');
   const publicUrl = `${baseUrl}/c/${username || 'usuario'}/calculorescisaotrabalhista`;
   const activePhone = customPhoneNumber || companyProfile.phone;
 
@@ -474,110 +473,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleGeneratePDF = async () => {
-    const resultElement = document.getElementById('calculation-result');
 
-    if (!resultElement) return;
-
-    setIsGeneratingPdf(true);
-
-    try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const margin = 10;
-      let currentY = 15;
-
-      // --- COMPANY HEADER SECTION ---
-      // Background Box
-      pdf.setFillColor(248, 250, 252); // slate-50
-      pdf.setDrawColor(203, 213, 225); // slate-300
-      pdf.roundedRect(margin, currentY, pdfWidth - (margin * 2), 55, 3, 3, 'FD');
-
-      // Header Content Container
-      const contentX = margin + 8;
-      let textY = currentY + 10;
-
-      // Company Name
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(30, 41, 59); // slate-800
-      pdf.text(companyProfile.name || "Advocacia Trabalhista", contentX, textY);
-
-      textY += 8;
-
-      // Address (Symbolized with text label)
-      pdf.setFontSize(9);
-      pdf.setFont("helvetica", "normal");
-      pdf.setTextColor(71, 85, 105); // slate-600
-      const address = companyProfile.address;
-      const addressLine = `${address.street}, ${address.number} - ${address.neighborhood}`;
-      const cityLine = `${address.city} - ${address.state}, CEP: ${address.cep}`;
-
-      pdf.text(`Endereço: ${addressLine}`, contentX, textY);
-      textY += 5;
-      pdf.text(cityLine, contentX, textY);
-
-      textY += 8;
-
-      // Contact Info Row 1 (Email / Site)
-      pdf.text(`Email: ${companyProfile.email}`, contentX, textY);
-      if (companyProfile.website) {
-        pdf.text(`Site: ${companyProfile.website}`, contentX + 80, textY);
-      }
-
-      textY += 8;
-
-      // --- CLICKABLE CONTACTS ---
-      const cleanPhone = companyProfile.phone.replace(/\D/g, '');
-      const whatsMsg = encodeURIComponent("Quero falar com um especialista");
-
-      // Phone Link
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(37, 99, 235); // blue-600
-      pdf.textWithLink(`Tel: ${companyProfile.phone}`, contentX, textY, { url: `tel:${cleanPhone}` });
-
-      // WhatsApp Link
-      pdf.setTextColor(22, 163, 74); // green-600
-      pdf.textWithLink(`WhatsApp: ${companyProfile.phone}`, contentX + 60, textY, { url: `https://wa.me/55${cleanPhone}?text=${whatsMsg}` });
-
-      // Call to action hint
-      textY += 6;
-      pdf.setFontSize(8);
-      pdf.setFont("helvetica", "italic");
-      pdf.setTextColor(148, 163, 184); // slate-400
-      pdf.text("(Clique nos números acima para entrar em contato)", contentX, textY);
-
-
-      // --- RESULT IMAGE ---
-      // Scale logic moved here to avoid html2canvas capturing header
-      const canvasResult = await html2canvas(resultElement, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
-
-      const imgDataResult = canvasResult.toDataURL('image/png');
-      const imgWidth = pdfWidth - (margin * 2);
-      const imgHeight = (canvasResult.height * imgWidth) / canvasResult.width;
-
-      // Place image below header
-      const imageY = currentY + 60; // Header height + padding
-      pdf.addImage(imgDataResult, 'PNG', margin, imageY, imgWidth, imgHeight);
-
-      // Footer
-      pdf.setFontSize(8);
-      pdf.setTextColor(150);
-      pdf.setFont("helvetica", "normal");
-      pdf.text(`Gerado em ${new Date().toLocaleDateString()} por Portal LexOnline`, margin, pdf.internal.pageSize.getHeight() - 10);
-
-      pdf.save(`calculo-rescisao-${input.employeeName || 'funcionario'}.pdf`);
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Erro ao gerar o PDF. Tente novamente.');
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  };
 
   const handleInputChange = (field: keyof CalculatorInput, value: any) => {
     setInput(prev => ({ ...prev, [field]: value }));
@@ -663,10 +559,9 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
       return;
     }
 
-    setIsGeneratingPdf(true);
+    setIsSendingEmail(true);
 
-    // --- Generate HTML summary and PDF attachment ---
-    let pdfBase64: string | null = null;
+    // --- Generate HTML summary ---
     let calculationHtml: string | null = null;
 
     if (result) {
@@ -691,62 +586,9 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
           </tr></tfoot>
         </table>
       `;
-
-      // Try to generate PDF if element exists
-      try {
-        const resultElement = document.getElementById('calculation-result-hidden');
-        if (resultElement) {
-          const canvas = await html2canvas(resultElement, { scale: 2, backgroundColor: '#ffffff', logging: false });
-
-          const pdf = new jsPDF('p', 'mm', 'a4');
-          const pdfWidth = pdf.internal.pageSize.getWidth();
-          const margin = 10;
-          const currentY = 15;
-
-          // Company header box
-          pdf.setFillColor(248, 250, 252);
-          pdf.setDrawColor(203, 213, 225);
-          pdf.roundedRect(margin, currentY, pdfWidth - margin * 2, 55, 3, 3, 'FD');
-          const contentX = margin + 8;
-          let textY = currentY + 10;
-          pdf.setFontSize(14); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(30, 41, 59);
-          pdf.text(companyProfile.name || 'Advocacia Trabalhista', contentX, textY);
-          textY += 8;
-          pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(71, 85, 105);
-          const addr = companyProfile.address;
-          pdf.text(`Endereço: ${addr.street}, ${addr.number} - ${addr.neighborhood}`, contentX, textY); textY += 5;
-          pdf.text(`${addr.city} - ${addr.state}, CEP: ${addr.cep}`, contentX, textY); textY += 8;
-          pdf.text(`Email: ${companyProfile.email}`, contentX, textY);
-          if (companyProfile.website) pdf.text(`Site: ${companyProfile.website}`, contentX + 80, textY);
-          textY += 8;
-          const cleanPhone = companyProfile.phone.replace(/\D/g, '');
-          const whatsMsg = encodeURIComponent('Quero falar com um especialista');
-          pdf.setFont('helvetica', 'bold'); pdf.setTextColor(37, 99, 235);
-          pdf.textWithLink(`Tel: ${companyProfile.phone}`, contentX, textY, { url: `tel:${cleanPhone}` });
-          pdf.setTextColor(22, 163, 74);
-          pdf.textWithLink(`WhatsApp: ${companyProfile.phone}`, contentX + 60, textY, { url: `https://wa.me/55${cleanPhone}?text=${whatsMsg}` });
-          textY += 6; pdf.setFontSize(8); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(148, 163, 184);
-          pdf.text('(Clique nos números acima para entrar em contato)', contentX, textY);
-
-          const imgData = canvas.toDataURL('image/png');
-          const imgWidth = pdfWidth - margin * 2;
-          const imgHeight = (canvas.height * imgWidth) / canvas.width;
-          pdf.addImage(imgData, 'PNG', margin, currentY + 60, imgWidth, imgHeight);
-          pdf.setFontSize(8); pdf.setTextColor(150); pdf.setFont('helvetica', 'normal');
-          pdf.text(`Gerado em ${new Date().toLocaleDateString()} por Portal LexOnline`, margin, pdf.internal.pageSize.getHeight() - 10);
-
-          pdfBase64 = pdf.output('datauristring');
-        }
-      } catch (pdfErr) {
-        console.warn('PDF generation failed, using HTML summary only:', pdfErr);
-      } finally {
-        setIsGeneratingPdf(false);
-      }
-    } else {
-      setIsGeneratingPdf(false);
     }
 
-    // Submit lead to backend (saves to CRM + sends email with PDF)
+    // Submit lead to backend (saves to CRM + sends email)
     if (isPublic && username) {
       try {
         await publishApi.submitPublicLead(username, {
@@ -754,13 +596,14 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
           email: leadData.email,
           phone: leadData.phone,
           estimatedValue: result?.netTotal || 0,
-          pdfBase64,
           calculationHtml,
         } as any);
       } catch (err: any) {
         console.error('Erro ao enviar lead', err);
       }
     }
+
+    setIsSendingEmail(false);
 
     // Fire conversion tags
     triggerConversions();
@@ -1148,7 +991,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
                     <CheckCircle className="h-10 w-10 text-green-600 dark:text-green-400" />
                   </div>
                   <h3 className="text-3xl font-bold text-slate-900 dark:text-white mb-3">Cálculo Pronto!</h3>
-                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed">Para visualizar o demonstrativo completo e baixar o PDF detalhado, por favor, identifique-se abaixo.</p>
+                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed">Para visualizar o demonstrativo completo, que será enviado para seu e-mail, por favor, identifique-se abaixo.</p>
                 </div>
                 <form onSubmit={submitLead} className="space-y-5">
                   <div className="space-y-2">
@@ -1182,51 +1025,17 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
                   </div>
                   <button
                     type="submit"
-                    disabled={!leadData.consent || isGeneratingPdf}
+                    disabled={!leadData.consent || isSendingEmail}
                     className="w-full bg-slate-900 hover:bg-black dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 text-white font-bold py-4 rounded-2xl mt-4 shadow-lg transition-all hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
                   >
-                    {isGeneratingPdf ? 'Enviando...' : 'Ver Resultado Completo'}
+                    {isSendingEmail ? 'Enviando...' : 'Ver Resultado Completo'}
                   </button>
                   <button onClick={() => setStep('input')} type="button" className="w-full text-slate-400 text-sm py-2 hover:text-slate-600 dark:hover:text-slate-200 font-medium">Voltar e editar dados</button>
                 </form>
               </div>
             )}
 
-            {/* Hidden element: rendered off-screen, captured by html2canvas for PDF attachment */}
-            {result && (
-              <div id="calculation-result-hidden" style={{ position: 'absolute', left: '-9999px', top: 0, width: '700px', background: '#fff', padding: '16px' }}>
-                <div style={{ background: '#fffbeb', borderLeft: '4px solid #f59e0b', padding: '12px 16px', marginBottom: '16px' }}>
-                  <p style={{ color: '#92400e', fontSize: '12px', margin: 0 }}>
-                    <strong>Estimativa Educativa:</strong> O valor exato depende da convenção coletiva de São Paulo. Consulte um advogado.
-                  </p>
-                </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                  <thead>
-                    <tr style={{ background: '#f1f5f9' }}>
-                      <th style={{ padding: '8px', textAlign: 'left' }}>Verba</th>
-                      <th style={{ padding: '8px', textAlign: 'right' }}>Ref.</th>
-                      <th style={{ padding: '8px', textAlign: 'right', color: '#16a34a' }}>Proventos</th>
-                      <th style={{ padding: '8px', textAlign: 'right', color: '#dc2626' }}>Descontos</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.items.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '6px 8px' }}>{item.description}</td>
-                        <td style={{ padding: '6px 8px', textAlign: 'right', color: '#94a3b8' }}>{item.reference}</td>
-                        <td style={{ padding: '6px 8px', textAlign: 'right', color: '#16a34a' }}>{item.type === 'earning' ? formatCurrency(item.value) : '-'}</td>
-                        <td style={{ padding: '6px 8px', textAlign: 'right', color: '#dc2626' }}>{item.type === 'deduction' ? formatCurrency(item.value) : '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ background: '#0f172a', color: '#fff' }}>
-                      <td colSpan={4} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 900, fontSize: '16px' }}>TOTAL LÍQUIDO: {formatCurrency(result.netTotal)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
+
 
             {step === 'result' && (
               <div className="max-w-lg mx-auto py-12 animate-in fade-in zoom-in duration-300">
@@ -1237,7 +1046,7 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
                   </div>
                   <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-3">Parabéns!</h3>
                   <p className="text-slate-500 dark:text-slate-400 leading-relaxed text-base">
-                    Seu cálculo foi processado e o <strong className="text-slate-700 dark:text-slate-200">demonstrativo completo em PDF</strong> foi enviado para:
+                    Seu cálculo foi processado e o <strong className="text-slate-700 dark:text-slate-200">demonstrativo completo</strong> foi enviado para o e-mail:
                   </p>
                   <p className="mt-2 text-indigo-600 dark:text-indigo-400 font-bold text-lg">{leadData.email}</p>
                 </div>

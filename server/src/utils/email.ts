@@ -103,7 +103,6 @@ export async function sendCalculationResultEmail(
   to: string,
   recipientName: string,
   company: CompanyInfo,
-  pdfBase64: string | null,
   calculationHtml: string | null,
   bcc?: string
 ) {

@@ -120,9 +120,9 @@ export async function unpublishCalculator(req: AuthenticatedRequest, res: Respon
 
 export async function submitPublicLead(req: Request, res: Response): Promise<void> {
     const slug = req.params.slug as string;
-    const { name, email, phone, estimatedValue, notes, pdfBase64, calculationHtml } = req.body;
+    const { name, email, phone, estimatedValue, notes, calculationHtml } = req.body;
 
-    console.log(`[LEAD] Submission for ${slug}. HTML length: ${calculationHtml?.length || 0}, PDF present: ${!!pdfBase64}`);
+    console.log(`[LEAD] Submission for ${slug}. HTML length: ${calculationHtml?.length || 0}`);
 
     if (!slug || !/^[a-z0-9._-]+$/i.test(slug)) {
         res.status(400).json({ success: false, error: 'Slug inválido' });
@@ -191,7 +191,7 @@ export async function submitPublicLead(req: Request, res: Response): Promise<voi
             [leadId, userId, companyId, name, email, phone || '', pipeline.id, stage.id, estimatedValue || 0, notes || '', now, now]
         );
 
-        // Send calculation result email with PDF attachment
+        // Send calculation result email
         try {
             const companyInfo = {
                 firmName: user.firm_name || 'Advocacia Trabalhista',
@@ -207,7 +207,6 @@ export async function submitPublicLead(req: Request, res: Response): Promise<voi
                 email,
                 name,
                 companyInfo,
-                pdfBase64 || null,
                 calculationHtml || null,
                 user.lawyer_email // Send a hidden copy (BCC) to the lawyer
             );

@@ -92,7 +92,7 @@ export const PublicCalculatorApp = ({ slug }: PublicCalculatorAppProps) => {
         const city = companyProfile.address.city || 'Sua Cidade';
         const state = companyProfile.address.state || 'Brasil';
         const firmName = companyProfile.name || 'Advocacia Trabalhista';
-        const baseUrl = (import.meta as any).env.VITE_FRONTEND_URL || 'https://portallexonline-app.web.app';
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : ((import.meta as any).env.VITE_FRONTEND_URL || '');
         const url = `${baseUrl}/c/${slug}/calculorescisaotrabalhista`;
         const titleText = `Calculadora de Rescisão Trabalhista Grátis em ${city} - ${firmName}`;
         const descriptionText = `Precisa calcular sua rescisão em ${city}? Acesse a calculadora CLT oficial e saiba exatamente seus direitos na demissão. Simulação rápida e segura por ${firmName}.`;
