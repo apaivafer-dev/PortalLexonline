@@ -559,47 +559,47 @@ export const BannerCreator = ({ initialCompanyName = 'Minha Empresa', userProfil
                     <div
                         id="banner-capture-area"
                         ref={bannerPreviewRef}
-                        className="w-full aspect-[210/297] max-w-[400px] mx-auto rounded-xl px-8 pt-8 pb-8 flex flex-col items-center text-center relative overflow-hidden transition-colors duration-300 shadow-[0_20px_50px_rgba(0,0,0,0.1)]"
+                        className="w-full aspect-[210/297] max-w-[400px] mx-auto rounded-xl px-12 pt-10 pb-12 flex flex-col items-center text-center relative transition-colors duration-300 shadow-[0_20px_50px_rgba(0,0,0,0.1)]"
                         style={{ backgroundColor: bannerColor, color: fontColor }}
                     >
-                        <div className="flex-1 w-full flex flex-col items-center">
+                        <div className="flex-1 w-full flex flex-col items-center justify-center">
                             {companyName && (
-                                <h1 className="text-2xl font-bold uppercase tracking-wide mb-4 leading-tight">
+                                <h1 className="text-2xl font-bold uppercase tracking-wide mb-6 leading-tight">
                                     {companyName}
                                 </h1>
                             )}
-                            {bannerTitle && <h2 className="text-2xl font-bold mb-3 leading-tight">{bannerTitle}</h2>}
-                            {bannerDescription && <p className="text-base opacity-95 mb-4 leading-relaxed line-clamp-2">{bannerDescription}</p>}
+                            {bannerTitle && <h2 className="text-2xl font-bold mb-4 leading-tight">{bannerTitle}</h2>}
+                            {bannerDescription && <p className="text-lg opacity-95 mb-6 leading-relaxed whitespace-pre-wrap">{bannerDescription}</p>}
 
-                            <div className={`p-3 bg-white rounded-xl mb-3 relative w-fit mx-auto
+                            <div className={`p-4 bg-white rounded-2xl mb-4 relative w-fit mx-auto
                                 ${frameType === 'black' ? 'border-[3px] border-black' : ''}
                                 ${frameType === 'white' ? 'border-[3px] border-gray-200' : ''}
                             `}>
                                 {frameType === 'google' && (
-                                    <div className="absolute inset-0 rounded-xl pointer-events-none" style={{
+                                    <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
                                         borderTop: '4px solid #ea4335',
                                         borderRight: '4px solid #4285f4',
                                         borderBottom: '4px solid #34a853',
                                         borderLeft: '4px solid #fbbc05',
                                     }}></div>
                                 )}
-                                <canvas ref={canvasRef} className="w-[130px] h-[130px] block" />
+                                <canvas ref={canvasRef} className="w-[140px] h-[140px] block" />
                             </div>
 
-                            {qrInstruction && <p className="text-xs font-medium uppercase tracking-wider mb-2 opacity-90">{qrInstruction}</p>}
+                            {qrInstruction && <p className="text-sm font-medium uppercase tracking-wider mb-4 opacity-90">{qrInstruction}</p>}
 
-                            <div className="w-full text-left space-y-2 mb-4 rounded-xl p-4 instructions-box" style={{ backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                            <div className="w-full text-left space-y-2.5 mb-6 rounded-xl p-5 instructions-box" style={{ backgroundColor: 'rgba(0,0,0,0.1)' }}>
                                 <div className="flex items-center gap-3 text-sm">
-                                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20 font-bold text-[10px]">1</span>
-                                    <span>Abra o aplicativo da câmera</span>
+                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 font-bold text-[12px]">1</span>
+                                    <span className="font-medium">Abra o aplicativo da câmera</span>
                                 </div>
                                 <div className="flex items-center gap-3 text-sm">
-                                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20 font-bold text-[10px]">2</span>
-                                    <span>Aponte para o QR Code</span>
+                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 font-bold text-[12px]">2</span>
+                                    <span className="font-medium">Aponte para o QR Code</span>
                                 </div>
                                 <div className="flex items-center gap-3 text-sm">
-                                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20 font-bold text-[10px]">3</span>
-                                    <span>Avalie nossa empresa</span>
+                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 font-bold text-[12px]">3</span>
+                                    <span className="font-medium">Avalie nossa empresa</span>
                                 </div>
                             </div>
                         </div>
