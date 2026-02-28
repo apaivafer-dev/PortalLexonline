@@ -3,24 +3,28 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-let resendClient: Resend | null = null;
-function getResend() {
-  if (!resendClient) {
-    resendClient = new Resend(process.env.RESEND_API_KEY);
+// IMPORTANTE: Não cacheamos o cliente. Criamos um novo a cada chamada
+// para garantir que RESEND_API_KEY seja lida DEPOIS do middleware que a injeta.
+function getResend(): Resend {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error('[EMAIL] RESEND_API_KEY não definida. Verifique os segredos do Firebase.');
   }
-  return resendClient;
+  return new Resend(apiKey);
 }
-const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+function getFrontendUrl(): string {
+  return process.env.FRONTEND_URL || 'http://localhost:3000';
+}
 
 export async function sendConfirmationEmail(email: string, name: string, token: string) {
-  const confirmLink = `${frontendUrl}/confirm-email?token=${token}`;
+  const confirmLink = `${getFrontendUrl()}/confirm-email?token=${token}`;
 
-  try {
-    await getResend().emails.send({
-      from: 'LexOnline <no-reply@lexonline.com.br>',
-      to: email,
-      subject: 'Confirme seu email - LexOnline',
-      html: `
+  await getResend().emails.send({
+    from: 'LexOnline <no-reply@lexonline.com.br>',
+    to: email,
+    subject: 'Confirme seu email - LexOnline',
+    html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
                     <h2 style="color: #4f46e5;">Bem-vindo ao LexOnline, ${name}!</h2>
                     <p>Ficamos felizes em ter você conosco. Para começar a usar todas as funcionalidades, por favor confirme seu endereço de email clicando no botão abaixo:</p>
@@ -32,21 +36,17 @@ export async function sendConfirmationEmail(email: string, name: string, token: 
                     <p style="font-size: 12px; color: #94a3b8;">Se você não criou esta conta, por favor ignore este email.</p>
                 </div>
             `
-    });
-  } catch (error) {
-    console.error('Error sending confirmation email:', error);
-  }
+  });
 }
 
 export async function sendPasswordResetEmail(email: string, name: string, token: string) {
-  const resetLink = `${frontendUrl}/reset-password?token=${token}`;
+  const resetLink = `${getFrontendUrl()}/reset-password?token=${token}`;
 
-  try {
-    await getResend().emails.send({
-      from: 'LexOnline <no-reply@lexonline.com.br>',
-      to: email,
-      subject: 'Redefinição de Senha - LexOnline',
-      html: `
+  await getResend().emails.send({
+    from: 'LexOnline <no-reply@lexonline.com.br>',
+    to: email,
+    subject: 'Redefinição de Senha - LexOnline',
+    html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
                     <h2 style="color: #4f46e5;">Olá, ${name}</h2>
                     <p>Recebemos uma solicitação para redefinir a senha da sua conta LexOnline.</p>
@@ -59,14 +59,11 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
                     <p style="font-size: 12px; color: #94a3b8;">Se você não solicitou a redefinição, pode ignorar este email com segurança.</p>
                 </div>
             `
-    });
-  } catch (error) {
-    console.error('Error sending password reset email:', error);
-  }
+  });
 }
 
 export async function sendWelcomeInviteEmail(email: string, name: string, token: string) {
-  const inviteLink = `${frontendUrl}/setup-password?token=${token}`;
+  const inviteLink = `${getFrontendUrl()}/setup-password?token=${token}`;
 
   try {
     await getResend().emails.send({
@@ -99,6 +96,7 @@ export interface CompanyInfo {
   website: string;
   city: string;
   state: string;
+  whatsapp?: string;
 }
 
 export async function sendCalculationResultEmail(
@@ -110,17 +108,9 @@ export async function sendCalculationResultEmail(
   bcc?: string
 ) {
   const cleanPhone = company.phone.replace(/\D/g, '');
-  const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent('Olá, quero falar com um especialista sobre meu cálculo de rescisão.')}`;
-
-  const attachments: any[] = [];
-  if (pdfBase64) {
-    const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
-    attachments.push({
-      filename: 'calculo-rescisao.pdf',
-      content: base64Data,
-      type: 'application/pdf',
-    });
-  }
+  const cleanWhatsapp = (company.whatsapp || company.phone).replace(/\D/g, '');
+  const finalWhatsapp = cleanWhatsapp.startsWith('55') ? cleanWhatsapp : `55${cleanWhatsapp}`;
+  const whatsappUrl = `https://wa.me/${finalWhatsapp}?text=${encodeURIComponent('Olá, quero falar com um especialista sobre meu cálculo de rescisão.')}`;
 
   const html = `
         <!DOCTYPE html>
@@ -143,25 +133,26 @@ export async function sendCalculationResultEmail(
               <tr>
                 <td style="padding:40px 40px 24px;">
                   <div style="text-align:center;margin-bottom:32px;">
-                    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:800;">Parabéns, ${recipientName}!</h2>
+                    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:800;">${recipientName}, seu cálculo está pronto!</h2>
                     <p style="margin:0;color:#475569;font-size:15px;line-height:1.6;">
-                      Seu cálculo de rescisão trabalhista foi processado com sucesso.<br/>
-                      O <strong>demonstrativo completo em PDF</strong> está em anexo neste e-mail.
+                      Abaixo você confere o demonstrativo detalhado da sua rescisão trabalhista.
                     </p>
                   </div>
 
                   <!-- Disclaimer -->
                   <div style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:32px;">
                     <p style="margin:0;color:#92400e;font-size:13px;line-height:1.6;">
-                      <strong>&#9888; Estimativa Educativa:</strong> O valor exato depende da convenção coletiva de São Paulo. Consulte um advogado.
+                      <strong>&#9888; Estimativa Educativa:</strong> O valor exato depende da sua convenção coletiva e detalhes do contrato. Consulte um advogado para uma análise jurídica precisa.
                     </p>
                   </div>
 
                   ${calculationHtml ? `
                   <!-- Calculation Summary -->
                   <div style="background:#f8fafc;border-radius:12px;padding:24px;margin-bottom:32px;">
-                    <h3 style="margin:0 0 16px;color:#0f172a;font-size:16px;font-weight:700;">Resumo do Cálculo</h3>
-                    ${calculationHtml}
+                    <h3 style="margin:0 0 16px;color:#0f172a;font-size:16px;font-weight:700;">Detalhamento do Cálculo</h3>
+                    <div style="color: #334155; font-size: 14px; line-height: 1.6;">
+                      ${calculationHtml}
+                    </div>
                   </div>` : ''}
 
                   <!-- Company Card -->
@@ -175,6 +166,7 @@ export async function sendCalculationResultEmail(
                       </tr>
                       ${company.city ? `<tr><td style="padding:4px 0;color:#475569;font-size:14px;">&#128205; ${company.city}${company.state ? ` - ${company.state}` : ''}</td></tr>` : ''}
                       ${company.phone ? `<tr><td style="padding:4px 0;font-size:14px;">&#128222; <a href="tel:${cleanPhone}" style="color:#0f172a;text-decoration:none;">${company.phone}</a></td></tr>` : ''}
+                      ${company.whatsapp ? `<tr><td style="padding:4px 0;font-size:14px;">&#128172; <a href="https://wa.me/${finalWhatsapp}" style="color:#25d366;text-decoration:none;">WhatsApp: ${company.whatsapp}</a></td></tr>` : ''}
                       ${company.email ? `<tr><td style="padding:4px 0;font-size:14px;">&#9993; <a href="mailto:${company.email}" style="color:#4f46e5;text-decoration:none;">${company.email}</a></td></tr>` : ''}
                       ${company.website ? `<tr><td style="padding:4px 0;font-size:14px;">&#127758; <a href="${company.website}" style="color:#4f46e5;text-decoration:none;">${company.website}</a></td></tr>` : ''}
                     </table>
@@ -183,11 +175,11 @@ export async function sendCalculationResultEmail(
                   <!-- WhatsApp CTA -->
                   ${cleanPhone ? `
                   <div style="text-align:center;margin-bottom:32px;">
-                    <a href="${whatsappUrl}"
+                    <a href="${whatsappUrl}" 
                        style="display:inline-block;background:#25d366;color:#ffffff;font-weight:800;font-size:15px;padding:16px 36px;border-radius:50px;text-decoration:none;">
                       &#128172; Falar com Advogado no WhatsApp
                     </a>
-                    <p style="margin:12px 0 0;color:#94a3b8;font-size:12px;">Resposta rápida e atendimento personalizado</p>
+                    <p style="margin:12px 0 0;color:#94a3b8;font-size:12px;">Atendimento personalizado para o seu caso</p>
                   </div>` : ''}
 
                 </td>
@@ -197,8 +189,8 @@ export async function sendCalculationResultEmail(
               <tr>
                 <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 40px;text-align:center;">
                   <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6;">
-                    Este e-mail foi enviado porque você solicitou um cálculo de rescisão trabalhista.<br/>
-                    O cálculo é uma estimativa educativa. Para análise jurídica precisa, consulte um advogado especialista.
+                    Este e-mail foi enviado automaticamente após a sua solicitação de cálculo.<br/>
+                    A LexOnline não retém dados sensíveis de conta bancária ou senhas.
                   </p>
                 </td>
               </tr>
@@ -214,8 +206,7 @@ export async function sendCalculationResultEmail(
     from: 'LexOnline <no-reply@lexonline.com.br>',
     to,
     bcc,
-    subject: `Seu Cálculo de Rescisão Trabalhista - ${company.firmName}`,
+    subject: `Resultado do seu Cálculo de Rescisão - ${company.firmName}`,
     html,
-    attachments: attachments.length > 0 ? attachments : undefined,
   });
 }

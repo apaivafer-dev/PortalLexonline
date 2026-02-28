@@ -133,8 +133,13 @@ export async function register(req: Request, res: Response): Promise<void> {
             [userId, name.trim(), emailLower, passwordHash, companyId, phone || null, firmName || null, slug, trialEndsAt, now, confirmationToken, tokenExpires, now, now]
         );
 
-        // Send confirmation email
-        await sendConfirmationEmail(emailLower, name, confirmationToken);
+        // Send confirmation email — isolated so email failure doesn't break registration
+        try {
+            await sendConfirmationEmail(emailLower, name, confirmationToken);
+        } catch (emailErr) {
+            console.error('[AUTH] FALHA AO ENVIAR EMAIL DE CONFIRMAÇÃO:', emailErr);
+            // Registration succeeds even if email fails. User can request re-send.
+        }
 
         console.log(`[AUTH] Creating company profile...`);
         // Create default company profile
@@ -273,7 +278,11 @@ export async function forgotPassword(req: Request, res: Response): Promise<void>
                 [resetToken, tokenExpires, new Date().toISOString(), user.id]
             );
 
-            await sendPasswordResetEmail(user.email, user.name, resetToken);
+            try {
+                await sendPasswordResetEmail(user.email, user.name, resetToken);
+            } catch (emailErr) {
+                console.error('[AUTH] FALHA AO ENVIAR EMAIL DE RESET:', emailErr);
+            }
         }
 
         // Always return success to avoid user enumeration

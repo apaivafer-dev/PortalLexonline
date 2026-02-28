@@ -665,78 +665,84 @@ export const CalculatorApp = ({ companyProfile, onUpdateFirmName, username, isPu
 
     setIsGeneratingPdf(true);
 
-    // --- Generate PDF as base64 for email attachment ---
+    // --- Generate HTML summary and PDF attachment ---
     let pdfBase64: string | null = null;
     let calculationHtml: string | null = null;
-    try {
-      const resultElement = document.getElementById('calculation-result-hidden');
-      if (resultElement && result) {
-        const canvas = await html2canvas(resultElement, { scale: 2, backgroundColor: '#ffffff', logging: false });
 
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const margin = 10;
-        const currentY = 15;
+    if (result) {
+      // Always generate HTML summary from data, regardless of DOM
+      calculationHtml = `
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="background:#f1f5f9;">
+            <th style="padding:8px;text-align:left;">Verba</th>
+            <th style="padding:8px;text-align:right;color:#16a34a;">Proventos</th>
+            <th style="padding:8px;text-align:right;color:#dc2626;">Descontos</th>
+          </tr></thead>
+          <tbody>
+            ${result.items.map(item => `<tr>
+              <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">${item.description}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:right;color:#16a34a;">${item.type === 'earning' ? 'R$ ' + item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:right;color:#dc2626;">${item.type === 'deduction' ? 'R$ ' + item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot><tr style="background:#0f172a;color:#fff;">
+            <td style="padding:10px 8px;font-weight:800;">Líquido a Receber</td>
+            <td colspan="2" style="padding:10px 8px;text-align:right;font-weight:800;font-size:16px;">R$ ${result.netTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+          </tr></tfoot>
+        </table>
+      `;
 
-        // Company header box
-        pdf.setFillColor(248, 250, 252);
-        pdf.setDrawColor(203, 213, 225);
-        pdf.roundedRect(margin, currentY, pdfWidth - margin * 2, 55, 3, 3, 'FD');
-        const contentX = margin + 8;
-        let textY = currentY + 10;
-        pdf.setFontSize(14); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(30, 41, 59);
-        pdf.text(companyProfile.name || 'Advocacia Trabalhista', contentX, textY);
-        textY += 8;
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(71, 85, 105);
-        const addr = companyProfile.address;
-        pdf.text(`Endereço: ${addr.street}, ${addr.number} - ${addr.neighborhood}`, contentX, textY); textY += 5;
-        pdf.text(`${addr.city} - ${addr.state}, CEP: ${addr.cep}`, contentX, textY); textY += 8;
-        pdf.text(`Email: ${companyProfile.email}`, contentX, textY);
-        if (companyProfile.website) pdf.text(`Site: ${companyProfile.website}`, contentX + 80, textY);
-        textY += 8;
-        const cleanPhone = companyProfile.phone.replace(/\D/g, '');
-        const whatsMsg = encodeURIComponent('Quero falar com um especialista');
-        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(37, 99, 235);
-        pdf.textWithLink(`Tel: ${companyProfile.phone}`, contentX, textY, { url: `tel:${cleanPhone}` });
-        pdf.setTextColor(22, 163, 74);
-        pdf.textWithLink(`WhatsApp: ${companyProfile.phone}`, contentX + 60, textY, { url: `https://wa.me/55${cleanPhone}?text=${whatsMsg}` });
-        textY += 6; pdf.setFontSize(8); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(148, 163, 184);
-        pdf.text('(Clique nos números acima para entrar em contato)', contentX, textY);
+      // Try to generate PDF if element exists
+      try {
+        const resultElement = document.getElementById('calculation-result-hidden');
+        if (resultElement) {
+          const canvas = await html2canvas(resultElement, { scale: 2, backgroundColor: '#ffffff', logging: false });
 
-        const imgData = canvas.toDataURL('image/png');
-        const imgWidth = pdfWidth - margin * 2;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        pdf.addImage(imgData, 'PNG', margin, currentY + 60, imgWidth, imgHeight);
-        pdf.setFontSize(8); pdf.setTextColor(150); pdf.setFont('helvetica', 'normal');
-        pdf.text(`Gerado em ${new Date().toLocaleDateString()} por Portal LexOnline`, margin, pdf.internal.pageSize.getHeight() - 10);
+          const pdf = new jsPDF('p', 'mm', 'a4');
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const margin = 10;
+          const currentY = 15;
 
-        pdfBase64 = pdf.output('datauristring');
+          // Company header box
+          pdf.setFillColor(248, 250, 252);
+          pdf.setDrawColor(203, 213, 225);
+          pdf.roundedRect(margin, currentY, pdfWidth - margin * 2, 55, 3, 3, 'FD');
+          const contentX = margin + 8;
+          let textY = currentY + 10;
+          pdf.setFontSize(14); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(30, 41, 59);
+          pdf.text(companyProfile.name || 'Advocacia Trabalhista', contentX, textY);
+          textY += 8;
+          pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(71, 85, 105);
+          const addr = companyProfile.address;
+          pdf.text(`Endereço: ${addr.street}, ${addr.number} - ${addr.neighborhood}`, contentX, textY); textY += 5;
+          pdf.text(`${addr.city} - ${addr.state}, CEP: ${addr.cep}`, contentX, textY); textY += 8;
+          pdf.text(`Email: ${companyProfile.email}`, contentX, textY);
+          if (companyProfile.website) pdf.text(`Site: ${companyProfile.website}`, contentX + 80, textY);
+          textY += 8;
+          const cleanPhone = companyProfile.phone.replace(/\D/g, '');
+          const whatsMsg = encodeURIComponent('Quero falar com um especialista');
+          pdf.setFont('helvetica', 'bold'); pdf.setTextColor(37, 99, 235);
+          pdf.textWithLink(`Tel: ${companyProfile.phone}`, contentX, textY, { url: `tel:${cleanPhone}` });
+          pdf.setTextColor(22, 163, 74);
+          pdf.textWithLink(`WhatsApp: ${companyProfile.phone}`, contentX + 60, textY, { url: `https://wa.me/55${cleanPhone}?text=${whatsMsg}` });
+          textY += 6; pdf.setFontSize(8); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(148, 163, 184);
+          pdf.text('(Clique nos números acima para entrar em contato)', contentX, textY);
 
-        // Simple HTML table summary for email body
-        calculationHtml = `
-          <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <thead><tr style="background:#f1f5f9;">
-              <th style="padding:8px;text-align:left;">Verba</th>
-              <th style="padding:8px;text-align:right;color:#16a34a;">Proventos</th>
-              <th style="padding:8px;text-align:right;color:#dc2626;">Descontos</th>
-            </tr></thead>
-            <tbody>
-              ${result.items.map(item => `<tr>
-                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">${item.description}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:right;color:#16a34a;">${item.type === 'earning' ? 'R$ ' + item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:right;color:#dc2626;">${item.type === 'deduction' ? 'R$ ' + item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>
-              </tr>`).join('')}
-            </tbody>
-            <tfoot><tr style="background:#0f172a;color:#fff;">
-              <td style="padding:10px 8px;font-weight:800;">Líquido a Receber</td>
-              <td colspan="2" style="padding:10px 8px;text-align:right;font-weight:800;font-size:16px;">R$ ${result.netTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-            </tr></tfoot>
-          </table>
-        `;
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = pdfWidth - margin * 2;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          pdf.addImage(imgData, 'PNG', margin, currentY + 60, imgWidth, imgHeight);
+          pdf.setFontSize(8); pdf.setTextColor(150); pdf.setFont('helvetica', 'normal');
+          pdf.text(`Gerado em ${new Date().toLocaleDateString()} por Portal LexOnline`, margin, pdf.internal.pageSize.getHeight() - 10);
+
+          pdfBase64 = pdf.output('datauristring');
+        }
+      } catch (pdfErr) {
+        console.warn('PDF generation failed, using HTML summary only:', pdfErr);
+      } finally {
+        setIsGeneratingPdf(false);
       }
-    } catch (pdfErr) {
-      console.warn('PDF generation failed, sending email without attachment:', pdfErr);
-    } finally {
+    } else {
       setIsGeneratingPdf(false);
     }
 

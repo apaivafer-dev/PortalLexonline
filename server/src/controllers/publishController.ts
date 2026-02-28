@@ -122,6 +122,8 @@ export async function submitPublicLead(req: Request, res: Response): Promise<voi
     const slug = req.params.slug as string;
     const { name, email, phone, estimatedValue, notes, pdfBase64, calculationHtml } = req.body;
 
+    console.log(`[LEAD] Submission for ${slug}. HTML length: ${calculationHtml?.length || 0}, PDF present: ${!!pdfBase64}`);
+
     if (!slug || !/^[a-z0-9._-]+$/i.test(slug)) {
         res.status(400).json({ success: false, error: 'Slug inválido' });
         return;
@@ -139,10 +141,12 @@ export async function submitPublicLead(req: Request, res: Response): Promise<voi
         const user = await db.get(
             `SELECT u.id, u.company_id, u.name as lawyer_name, u.email as lawyer_email,
                     cp.name as firm_name, cp.phone as firm_phone, cp.email as firm_email,
-                    cp.website as firm_website, cp.address_street, cp.address_number,
-                    cp.address_city, cp.address_state
+                    cp.website as firm_website, cp.street as address_street, cp.number as address_number,
+                    cp.city as address_city, cp.state as address_state,
+                    pc.whatsapp_number
              FROM users u
              LEFT JOIN company_profiles cp ON cp.user_id = u.id
+             LEFT JOIN published_calculators pc ON pc.user_id = u.id
              WHERE u.slug = ?`,
             slug
         );
@@ -196,6 +200,7 @@ export async function submitPublicLead(req: Request, res: Response): Promise<voi
                 website: user.firm_website || '',
                 city: user.address_city || '',
                 state: user.address_state || '',
+                whatsapp: user.whatsapp_number || '',
             };
 
             await sendCalculationResultEmail(

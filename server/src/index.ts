@@ -34,14 +34,20 @@ app.use(helmet({
 app.use(cookieParser());
 
 // --- Secret Injection Context ---
-// We use a dedicated middleware to ensure secrets are in process.env before anything else
+// We use a dedicated middleware to ensure secrets are in process.env before anything else.
+// In local dev, configSecret.value() throws because Firebase Functions don't run locally.
+// In that case, we fall back to environment variables from .env file.
 app.use((req, res, next) => {
-    const config = configSecret.value() as any;
-    if (config?.lexonline) {
-        if (!process.env.DATABASE_URL) process.env.DATABASE_URL = config.lexonline.db_url;
-        if (!process.env.JWT_SECRET) process.env.JWT_SECRET = config.lexonline.jwt_secret;
-        if (!process.env.RESEND_API_KEY) process.env.RESEND_API_KEY = config.lexonline.resend_api_key;
-        if (!process.env.FRONTEND_URL) process.env.FRONTEND_URL = config.lexonline.frontend_url;
+    try {
+        const config = configSecret.value() as any;
+        if (config?.lexonline) {
+            process.env.DATABASE_URL = config.lexonline.db_url;
+            process.env.JWT_SECRET = config.lexonline.jwt_secret;
+            process.env.RESEND_API_KEY = config.lexonline.resend_api_key;
+            process.env.FRONTEND_URL = config.lexonline.frontend_url;
+        }
+    } catch (_) {
+        // Local dev: secrets not available from Firebase Functions — using .env values
     }
     next();
 });
