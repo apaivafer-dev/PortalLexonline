@@ -60,13 +60,11 @@ const MiniBannerPreview: React.FC<{ config: BannerConfig, onClick: () => void, i
             onClick={onClick}
             className={`group cursor-pointer flex flex-col gap-3 ${isLocked ? 'opacity-70' : ''}`}
         >
-            {/* Aspect Ratio Container for scaling */}
             <div className="relative w-full pt-[141%] bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 transition-all duration-300 group-hover:shadow-lg group-hover:border-indigo-300 group-hover:scale-[1.02]">
                 <div
                     className="absolute inset-0 p-4 flex flex-col items-center text-center"
                     style={{ backgroundColor: config.bannerColor, color: config.fontColor }}
                 >
-                    {/* Mini Content Scaled Down visually by CSS logic or just standard small classes */}
                     <h1 className="text-[10px] font-bold uppercase tracking-wide mb-2 leading-tight line-clamp-2">{config.companyName}</h1>
                     <h2 className="text-[8px] font-bold mb-1 leading-tight line-clamp-1">{config.bannerTitle}</h2>
                     <p className="text-[6px] opacity-95 mb-2 leading-relaxed line-clamp-2">{config.bannerDescription}</p>
@@ -86,7 +84,6 @@ const MiniBannerPreview: React.FC<{ config: BannerConfig, onClick: () => void, i
                     </div>
                 </div>
 
-                {/* Hover Overlay */}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
                     {isLocked ? (
                         <div className="bg-white text-red-600 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-1">
@@ -148,7 +145,6 @@ export const BannerCreator = ({ initialCompanyName = 'Minha Empresa', userProfil
     const [bannerColor, setBannerColor] = useState(DEFAULT_CONFIG.bannerColor);
     const [fontColor, setFontColor] = useState(DEFAULT_CONFIG.fontColor);
     const [frameType, setFrameType] = useState<BannerConfig['frameType']>(DEFAULT_CONFIG.frameType);
-    const [format, setFormat] = useState('a4');
     const [isGenerating, setIsGenerating] = useState(false);
 
     // Refs
@@ -241,7 +237,6 @@ export const BannerCreator = ({ initialCompanyName = 'Minha Empresa', userProfil
                 setBanners(prev => [mapped, ...prev]);
                 setCurrentId(mapped.id);
             }
-            // alert('Banner salvo com sucesso!'); // Removido para não travar o download do PDF
             return true;
         } catch (error) {
             console.error('Error saving:', error);
@@ -261,30 +256,58 @@ export const BannerCreator = ({ initialCompanyName = 'Minha Empresa', userProfil
             if (!saved) return;
 
             const element = bannerPreviewRef.current;
+
+            // ── SEGUINDO A LÓGICA QUE FUNCIONOU NO CARTÃO ──
             const canvas = await html2canvas(element, {
-                scale: 3, // High quality
+                scale: 2,
                 useCORS: true,
+                allowTaint: true,
+                backgroundColor: bannerColor,
                 logging: false,
-                backgroundColor: bannerColor
+                onclone: (clonedDoc) => {
+                    const area = clonedDoc.getElementById('banner-capture-area');
+                    if (area) {
+                        // Forçar remoção de qualquer filtro que cause oklab
+                        area.style.filter = 'none';
+                        area.style.backdropFilter = 'none';
+                        area.style.boxShadow = 'none';
+                        area.style.transition = 'none';
+
+                        const all = area.querySelectorAll('*');
+                        all.forEach(el => {
+                            if (el instanceof HTMLElement) {
+                                el.style.filter = 'none';
+                                el.style.backdropFilter = 'none';
+                                el.style.boxShadow = 'none';
+                                el.style.transition = 'none';
+                                el.style.animation = 'none';
+
+                                // Converter cores oklab potenciais para RGBA fixo em caso de transparência
+                                const computedStyle = window.getComputedStyle(el);
+                                if (computedStyle.backgroundColor.includes('oklab')) {
+                                    el.style.backgroundColor = 'rgba(0,0,0,0.1)';
+                                }
+                            }
+                        });
+                    }
+                }
             });
 
-            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            const imgData = canvas.toDataURL('image/png');
+
+            // Usando pontos (pt) para garantir precisão como no InteractiveCard
             const pdf = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'a4'
+                unit: 'pt',
+                format: [canvas.width * 0.75, canvas.height * 0.75]
             });
 
-            const imgProps = pdf.getImageProperties(imgData);
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+            pdf.addImage(imgData, 'PNG', 0, 0, canvas.width * 0.75, canvas.height * 0.75);
             pdf.save(`banner-${companyName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+
             alert('Banner salvo e PDF gerado com sucesso!');
         } catch (error) {
             console.error('Error generating PDF:', error);
-            alert('Erro ao gerar PDF. Tente novamente.');
+            alert('Erro ao gerar PDF: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
         } finally {
             setIsGenerating(false);
         }
@@ -307,7 +330,7 @@ export const BannerCreator = ({ initialCompanyName = 'Minha Empresa', userProfil
                         onClick={handleCreateNew}
                         disabled={limitReached}
                         className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg
-                            \${limitReached
+                            ${limitReached
                                 ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed'
                                 : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-indigo-500/20'
                             }`}
@@ -322,15 +345,15 @@ export const BannerCreator = ({ initialCompanyName = 'Minha Empresa', userProfil
                         onClick={handleCreateNew}
                         disabled={limitReached}
                         className={`group flex flex-col items-center justify-center gap-4 aspect-[210/297] rounded-xl border-2 border-dashed transition-all
-                            \${limitReached
+                            ${limitReached
                                 ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-not-allowed opacity-60'
                                 : 'border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 bg-slate-50 dark:bg-slate-800/50 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 cursor-pointer'
                             }`}
                     >
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors \${limitReached ? 'bg-slate-200 dark:bg-slate-700 text-slate-400' : 'bg-slate-200 dark:bg-slate-700 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 text-slate-400 hover:text-indigo-600'}`}>
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${limitReached ? 'bg-slate-200 dark:bg-slate-700 text-slate-400' : 'bg-slate-200 dark:bg-slate-700 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 text-slate-400 hover:text-indigo-600'}`}>
                             {limitReached ? <Lock size={24} /> : <Plus size={24} />}
                         </div>
-                        <span className={`font-bold text-sm \${limitReached ? 'text-slate-400' : 'text-slate-400 group-hover:text-indigo-600'}`}>
+                        <span className={`font-bold text-sm ${limitReached ? 'text-slate-400' : 'text-slate-400 group-hover:text-indigo-600'}`}>
                             {limitReached ? 'Limite Atingido' : 'Adicionar Novo'}
                         </span>
                     </button>
@@ -452,7 +475,7 @@ export const BannerCreator = ({ initialCompanyName = 'Minha Empresa', userProfil
                                         <button
                                             key={c}
                                             onClick={() => setBannerColor(c)}
-                                            className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 \${bannerColor === c ? 'border-slate-800 dark:border-white scale-110 shadow-md' : 'border-transparent'}`}
+                                            className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${bannerColor === c ? 'border-slate-800 dark:border-white scale-110 shadow-md' : 'border-transparent'}`}
                                             style={{ backgroundColor: c }}
                                         />
                                     ))}
@@ -473,7 +496,7 @@ export const BannerCreator = ({ initialCompanyName = 'Minha Empresa', userProfil
                                         <button
                                             key={c}
                                             onClick={() => setFontColor(c)}
-                                            className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 \${fontColor === c ? 'border-slate-800 dark:border-white scale-110 shadow-md' : 'border-slate-200'}`}
+                                            className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${fontColor === c ? 'border-slate-800 dark:border-white scale-110 shadow-md' : 'border-slate-200'}`}
                                             style={{ backgroundColor: c }}
                                         />
                                     ))}
@@ -501,12 +524,12 @@ export const BannerCreator = ({ initialCompanyName = 'Minha Empresa', userProfil
                                         key={f.id}
                                         onClick={() => setFrameType(f.id as any)}
                                         className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all
-                                            \${frameType === f.id
+                                            ${frameType === f.id
                                                 ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
                                                 : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
                                             }`}
                                     >
-                                        <div className={`w-12 h-12 flex items-center justify-center bg-white rounded shadow-sm text-xs font-bold text-slate-400 \${f.id === 'black' ? 'border-2 border-black' : f.id === 'white' ? 'border-2 border-slate-300' : ''}`}>
+                                        <div className={`w-12 h-12 flex items-center justify-center bg-white rounded shadow-sm text-xs font-bold text-slate-400 ${f.id === 'black' ? 'border-2 border-black' : f.id === 'white' ? 'border-2 border-slate-300' : ''}`}>
                                             {f.id === 'google' ? (
                                                 <div className="w-full h-full rounded relative overflow-hidden p-1">
                                                     <div className="absolute top-0 left-0 w-full h-[3px] bg-[#ea4335]"></div>
@@ -534,53 +557,56 @@ export const BannerCreator = ({ initialCompanyName = 'Minha Empresa', userProfil
                     </div>
 
                     <div
+                        id="banner-capture-area"
                         ref={bannerPreviewRef}
-                        className="w-full aspect-[210/297] max-w-[400px] mx-auto rounded-xl px-8 pt-8 pb-12 flex flex-col items-center text-center relative overflow-hidden shadow-2xl transition-colors duration-300"
+                        className="w-full aspect-[210/297] max-w-[400px] mx-auto rounded-xl px-8 pt-8 pb-8 flex flex-col items-center text-center relative overflow-hidden transition-colors duration-300 shadow-[0_20px_50px_rgba(0,0,0,0.1)]"
                         style={{ backgroundColor: bannerColor, color: fontColor }}
                     >
-                        {companyName && (
-                            <h1 className="text-2xl font-bold uppercase tracking-wide mb-6 leading-tight">
-                                {companyName}
-                            </h1>
-                        )}
-                        {bannerTitle && <h2 className="text-2xl font-bold mb-4 leading-tight">{bannerTitle}</h2>}
-                        {bannerDescription && <p className="text-base opacity-95 mb-6 leading-relaxed">{bannerDescription}</p>}
-
-                        <div className={`p-3 bg-white rounded-xl mb-3 relative w-fit mx-auto
-                            \${frameType === 'black' ? 'border-[3px] border-black' : ''}
-                            \${frameType === 'white' ? 'border-[3px] border-gray-200' : ''}
-                        `}>
-                            {frameType === 'google' && (
-                                <div className="absolute inset-0 rounded-xl pointer-events-none" style={{
-                                    borderTop: '4px solid #ea4335',
-                                    borderRight: '4px solid #4285f4',
-                                    borderBottom: '4px solid #34a853',
-                                    borderLeft: '4px solid #fbbc05',
-                                }}></div>
+                        <div className="flex-1 w-full flex flex-col items-center">
+                            {companyName && (
+                                <h1 className="text-2xl font-bold uppercase tracking-wide mb-4 leading-tight">
+                                    {companyName}
+                                </h1>
                             )}
-                            <canvas ref={canvasRef} className="w-[140px] h-[140px] block" />
-                        </div>
+                            {bannerTitle && <h2 className="text-2xl font-bold mb-3 leading-tight">{bannerTitle}</h2>}
+                            {bannerDescription && <p className="text-base opacity-95 mb-4 leading-relaxed line-clamp-2">{bannerDescription}</p>}
 
-                        {qrInstruction && <p className="text-xs font-medium uppercase tracking-wider mb-2 opacity-90">{qrInstruction}</p>}
+                            <div className={`p-3 bg-white rounded-xl mb-3 relative w-fit mx-auto
+                                ${frameType === 'black' ? 'border-[3px] border-black' : ''}
+                                ${frameType === 'white' ? 'border-[3px] border-gray-200' : ''}
+                            `}>
+                                {frameType === 'google' && (
+                                    <div className="absolute inset-0 rounded-xl pointer-events-none" style={{
+                                        borderTop: '4px solid #ea4335',
+                                        borderRight: '4px solid #4285f4',
+                                        borderBottom: '4px solid #34a853',
+                                        borderLeft: '4px solid #fbbc05',
+                                    }}></div>
+                                )}
+                                <canvas ref={canvasRef} className="w-[130px] h-[130px] block" />
+                            </div>
 
-                        <div className="w-full text-left space-y-3 mb-4 bg-black/10 rounded-xl p-4 backdrop-blur-sm">
-                            <div className="flex items-center gap-3 text-sm">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 font-bold text-xs">1</span>
-                                <span>Abra o aplicativo da câmera</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 font-bold text-xs">2</span>
-                                <span>Aponte para o QR Code</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 font-bold text-xs">3</span>
-                                <span>Avalie nossa empresa</span>
+                            {qrInstruction && <p className="text-xs font-medium uppercase tracking-wider mb-2 opacity-90">{qrInstruction}</p>}
+
+                            <div className="w-full text-left space-y-2 mb-4 rounded-xl p-4 instructions-box" style={{ backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                                <div className="flex items-center gap-3 text-sm">
+                                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20 font-bold text-[10px]">1</span>
+                                    <span>Abra o aplicativo da câmera</span>
+                                </div>
+                                <div className="flex items-center gap-3 text-sm">
+                                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20 font-bold text-[10px]">2</span>
+                                    <span>Aponte para o QR Code</span>
+                                </div>
+                                <div className="flex items-center gap-3 text-sm">
+                                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20 font-bold text-[10px]">3</span>
+                                    <span>Avalie nossa empresa</span>
+                                </div>
                             </div>
                         </div>
 
                         {instructions && (
-                            <div className="mt-auto pt-4 w-full">
-                                <p className="text-sm italic opacity-90 font-medium leading-tight">
+                            <div className="w-full mt-auto">
+                                <p className="text-sm italic opacity-90 font-medium leading-tight whitespace-pre-wrap">
                                     {instructions}
                                 </p>
                             </div>
@@ -588,32 +614,17 @@ export const BannerCreator = ({ initialCompanyName = 'Minha Empresa', userProfil
                     </div>
 
                     <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
-                        <div className="flex flex-col sm:flex-row gap-4 justify-between items-center">
-                            <div className="w-full sm:w-auto">
-                                <label className="block text-xs font-medium text-slate-500 mb-1">Formato</label>
-                                <select
-                                    value={format}
-                                    onChange={(e) => setFormat(e.target.value)}
-                                    className="w-full sm:w-40 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-3 py-2 text-sm dark:text-white"
-                                >
-                                    <option value="a4">PDF Automático (A4)</option>
-                                    <option value="png">Imagem (PNG)</option>
-                                </select>
-                            </div>
-
-                            <div className="flex gap-3 w-full sm:w-auto">
-                                <div className="flex gap-3 w-full sm:w-auto">
-                                    <button
-                                        onClick={handleDownloadPDF}
-                                        disabled={isGenerating}
-                                        className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-indigo-500/30 disabled:opacity-50"
-                                    >
-                                        {isGenerating ? "Processando..." : (
-                                            <><Download size={20} /> Salvar e Baixar PDF</>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
+                        <div className="flex justify-center flex-col items-center">
+                            <button
+                                onClick={handleDownloadPDF}
+                                disabled={isGenerating}
+                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-indigo-500/30 disabled:opacity-50"
+                            >
+                                {isGenerating ? "Processando..." : (
+                                    <><Download size={22} /> Salvar e Baixar PDF</>
+                                )}
+                            </button>
+                            <p className="text-[10px] text-slate-400 mt-2">O banner será salvo automaticamente antes do download.</p>
                         </div>
                     </div>
                 </div>
